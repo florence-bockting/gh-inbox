@@ -29,7 +29,7 @@ REASON_LABELS = {
 KINDS = {"pr": ("PR", "bold #b48cf0"), "issue": ("Issue", "bold green"), "other": ("Other", "dim")}
 # Filters per tab, and the label of the "all" option of each filter.
 FILTER_FIELDS = {
-    "action": ["repo", "kind", "reason"], "watch": ["repo", "kind", "reason"],
+    "action": ["repo", "kind", "reason"], "watch": ["repo", "kind"],
     "mine": ["repo", "kind"],
 }
 FIELD_PROMPTS = {"repo": "All repos", "kind": "All kinds", "reason": "All types"}

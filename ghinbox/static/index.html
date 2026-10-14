@@ -108,7 +108,7 @@ const REASONS = {
 const KINDS = {pr: "PR", issue: "Issue", other: "Other"};
 // Filters per tab: [field, label of the "all" option, label of one value].
 const FILTER_FIELDS = {
-  action: ["repo", "kind", "reason"], watch: ["repo", "kind", "reason"], mine: ["repo", "kind"],
+  action: ["repo", "kind", "reason"], watch: ["repo", "kind"], mine: ["repo", "kind"],
 };
 const FIELD_LABELS = {
   repo: ["All repos", (v) => v], kind: ["All kinds", (v) => KINDS[v] || v],
