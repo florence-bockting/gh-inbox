@@ -24,6 +24,8 @@ def apply(conn, action, body):
         db.set_done(conn, body["key"], body["category"], bool(body["done"]))
     elif action == "items/all-done":
         db.mark_all_done(conn, body["category"])
+    elif action == "items/move":
+        db.move_item(conn, body["key"], body["category"], body["to"])
     elif action == "items/remind":
         db.set_remind(conn, body["key"], body["category"], _hours(body.get("hours")))
     elif action == "items/stall":

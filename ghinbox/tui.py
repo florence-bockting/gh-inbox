@@ -107,6 +107,7 @@ class InboxApp(App):
         Binding("d", "done", "Done/undo"),
         Binding("r", "remind", "Remind every"),
         Binding("s", "stall", "Stall days"),
+        Binding("m", "move", "Move to tab"),
         Binding("f", "filter", "Filter"),
         Binding("x", "clear_filters", "Clear filters"),
         Binding("t", "toggle_stalled", "Hide stalled"),
@@ -283,7 +284,7 @@ class InboxApp(App):
         return text
 
     def _badge(self, it):
-        if it["category"] == "mine":
+        if it["tab"] == "mine":
             text = Text()
             if it["stalled"]:
                 text.append("stalled ", style="bold red")
@@ -344,13 +345,28 @@ class InboxApp(App):
             self.do("items/done", {"key": it["key"], "category": it["category"],
                                    "done": not it["done"]})
 
+    def action_move(self):
+        it = self.current()
+        if not it or "category" not in it:
+            return
+        names = ", ".join(t for t, _ in TABS[:3] if t != it["tab"])
+        self.ask(f"Move to tab ({names}):", "",
+                 lambda v: v and self.do("items/move", {"key": it["key"],
+                                                        "category": it["category"],
+                                                        "to": v.strip().lower()}))
+
+    @staticmethod
+    def _own_mine(it):
+        return it.get("tab") == "mine" and it.get("category") == "mine"
+
     def action_all_done(self):
         if self.tab == "watch":
             self.do("items/all-done", {"category": "watch"})
 
     def action_remind(self):
         it = self.current()
-        if not it or it.get("category") not in ("action", "mine"):
+        # Pop-ups follow the tab that shows the item. Stalled pop-ups need a My work item.
+        if not it or not (it.get("tab") == "action" or self._own_mine(it)):
             return
         value = "" if it["remind_hours"] is None else f"{it['remind_hours']:g}"
         self.ask("Remind me every N hours (0 = off, empty = default):", value,
@@ -359,7 +375,7 @@ class InboxApp(App):
 
     def action_stall(self):
         it = self.current()
-        if not it or it.get("category") != "mine":
+        if not it or not self._own_mine(it):
             return
         value = "" if it["stall_days"] is None else f"{it['stall_days']:g}"
         self.ask("Stalled after N days without activity (0 = off, empty = default):", value,

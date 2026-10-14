@@ -19,6 +19,10 @@ DEFAULT_SETTINGS = {
     "new_item_days": "7",
 }
 
+TABS = ("action", "watch", "mine")
+# The tab that shows an item: the tab you moved it to, or the tab that the sync chose.
+SHOWN = "coalesce(moved_to, category)"
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS repos (
     full_name   TEXT PRIMARY KEY,
@@ -50,6 +54,7 @@ CREATE TABLE IF NOT EXISTS items (
     stalled       INTEGER NOT NULL DEFAULT 0,
     activity      INTEGER NOT NULL DEFAULT 0,
     assigned      INTEGER NOT NULL DEFAULT 0,   -- you are an assignee (Action only)
+    moved_to      TEXT,               -- the tab you moved the item to
     PRIMARY KEY (key, category)
 );
 CREATE TABLE IF NOT EXISTS settings (
@@ -83,9 +88,11 @@ def connect():
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.executescript(SCHEMA)
-    # A database from an older version has no `assigned` column.
-    if "assigned" not in {r["name"] for r in conn.execute("PRAGMA table_info(items)")}:
-        conn.execute("ALTER TABLE items ADD COLUMN assigned INTEGER NOT NULL DEFAULT 0")
+    # A database from an older version does not have all the columns.
+    have = {r["name"] for r in conn.execute("PRAGMA table_info(items)")}
+    for column, decl in [("assigned", "INTEGER NOT NULL DEFAULT 0"), ("moved_to", "TEXT")]:
+        if column not in have:
+            conn.execute(f"ALTER TABLE items ADD COLUMN {column} {decl}")
     conn.executemany(
         "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
         DEFAULT_SETTINGS.items(),
@@ -176,13 +183,16 @@ def set_watched(conn, full_name, watched):
 
 def list_items(conn, category, show_done=False, oldest_first=False):
     """Newest first: by the last event, or by the last update in My work."""
-    sql = "SELECT * FROM items WHERE category = ?"
+    sql = f"SELECT *, {SHOWN} AS tab FROM items WHERE {SHOWN} = ?"
     if not show_done:
         sql += " AND done = 0"
+    # A moved item hides when the target tab has the same issue of its own.
+    sql += (" AND NOT (moved_to IS NOT NULL AND EXISTS (SELECT 1 FROM items b"
+            " WHERE b.key = items.key AND b.category = items.moved_to AND b.moved_to IS NULL))")
     if category == "watch":
         # An item that needs your action shows only in the Action tab.
         sql += (" AND NOT EXISTS (SELECT 1 FROM items a WHERE a.key = items.key"
-                " AND a.category = 'action' AND a.done = 0)")
+                " AND coalesce(a.moved_to, a.category) = 'action' AND a.done = 0)")
     when = "updated_at" if category == "mine" else "coalesce(event_at, updated_at)"
     sql += f" ORDER BY {when} {'ASC' if oldest_first else 'DESC'}"
     return [dict(r) for r in conn.execute(sql, (category,))]
@@ -190,8 +200,8 @@ def list_items(conn, category, show_done=False, oldest_first=False):
 
 def counts(conn):
     rows = conn.execute(
-        "SELECT category, count(*) AS n FROM items WHERE done = 0 GROUP BY category")
-    return {r["category"]: r["n"] for r in rows}
+        f"SELECT {SHOWN} AS tab, count(*) AS n FROM items WHERE done = 0 GROUP BY tab")
+    return {r["tab"]: r["n"] for r in rows}
 
 
 def set_done(conn, key, category, done):
@@ -203,8 +213,26 @@ def set_done(conn, key, category, done):
 
 def mark_all_done(conn, category):
     conn.execute(
-        "UPDATE items SET done = 1, done_at = ?, auto_done = 0 WHERE category = ? AND done = 0",
+        f"UPDATE items SET done = 1, done_at = ?, auto_done = 0 WHERE {SHOWN} = ? AND done = 0",
         (now_iso(), category))
+    conn.commit()
+
+
+def move_item(conn, key, category, target):
+    """Show the item in the tab `target`. The sync still updates it in `category`."""
+    if target not in TABS:
+        raise ValueError(f"unknown tab {target}")
+    row = conn.execute(f"SELECT {SHOWN} AS tab FROM items WHERE key = ? AND category = ?",
+                       (key, category)).fetchone()
+    if row is None:
+        raise KeyError(key)
+    conn.execute("UPDATE items SET moved_to = ? WHERE key = ? AND category = ?",
+                 (None if target == category else target, key, category))
+    if target == "action" and row["tab"] != "action":
+        # The first pop-up comes after the reminder interval, not now.
+        conn.execute(
+            "UPDATE items SET last_notified = ?, notify_count = 1 WHERE key = ? AND category = ?",
+            (now_iso(), key, category))
     conn.commit()
 
 

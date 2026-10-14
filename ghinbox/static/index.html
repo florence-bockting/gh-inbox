@@ -177,28 +177,33 @@ function itemRow(it) {
   const ref = it.number ? `${it.repo}#${it.number}` : it.repo;
   const kind = it.state === "draft" ? "Draft PR" : KINDS[it.kind] || it.kind;
   const badges = [`<span class="badge kind kind-${esc(it.kind)}">${esc(kind)}</span>`];
-  if (it.category !== "mine")
+  if (it.tab !== "mine")
     badges.push(`<span class="badge ${esc(it.reason)}">${esc(REASONS[it.reason] || it.reason)}</span>`);
   if (it.assigned && it.reason !== "assign")
     badges.push(`<span class="badge assign">${REASONS.assign}</span>`);
   if (it.stalled) badges.push(`<span class="badge stalled">stalled</span>`);
   if (it.activity) badges.push(`<span class="badge activity">new activity</span>`);
-  if (it.category === "action" && it.notify_count > 1)
+  if (it.tab === "action" && it.notify_count > 1)
     badges.push(`<span class="badge reminded">reminded ${it.notify_count - 1}×</span>`);
   if (it.state && !["open", "draft"].includes(it.state)) badges.push(`<span class="badge">${esc(it.state)}</span>`);
-  const when = it.category === "mine" ? "updated " + ago(it.updated_at) : ago(it.event_at);
+  const when = it.tab === "mine" ? "updated " + ago(it.updated_at) : ago(it.event_at);
   const key = esc(it.key), cat = esc(it.category);
+  // Pop-ups follow the tab that shows the item. Stalled pop-ups need a My work item.
+  const ownMine = it.tab === "mine" && it.category === "mine";
   let controls = "";
-  if (it.category === "action" || it.category === "mine") {
+  if (it.tab === "action" || ownMine) {
     const hours = it.remind_hours ?? "";
-    const ph = it.category === "action" ? status.settings.default_remind_hours : "off";
+    const ph = it.tab === "action" ? status.settings.default_remind_hours : "off";
     controls += `<label>remind every</label><input type="number" min="0" step="any"
       data-remind="${key}" data-cat="${cat}" value="${hours}" placeholder="${ph}"><label>h</label>`;
   }
-  if (it.category === "mine") {
+  if (ownMine) {
     controls += `<label>stalled after</label><input type="number" min="0" step="any"
       data-stall="${key}" value="${it.stall_days ?? ""}" placeholder="${status.settings.stall_days}"><label>d</label>`;
   }
+  controls += `<select data-move="${key}" data-cat="${cat}"><option value="">Move to…</option>
+    ${TABS.slice(0, 3).filter(([id]) => id !== it.tab)
+      .map(([id, label]) => `<option value="${id}">${label}</option>`).join("")}</select>`;
   controls += `<button class="btn" data-done="${key}" data-cat="${cat}" data-val="${it.done ? 0 : 1}">
     ${it.done ? "Undo" : "Done"}</button>`;
   return `<div class="row ${it.done ? "done" : ""}">
@@ -318,13 +323,17 @@ document.addEventListener("change", async (e) => {
     if (t.dataset.watch) await post("/api/repos/watch", {full_name: t.dataset.watch, watched: t.checked});
     else if (t.dataset.remind) await post("/api/items/remind", {key: t.dataset.remind, category: t.dataset.cat, hours: t.value});
     else if (t.dataset.stall) await post("/api/items/stall", {key: t.dataset.stall, days: t.value});
+    else if (t.dataset.move) {
+      if (!t.value) return;
+      await post("/api/items/move", {key: t.dataset.move, category: t.dataset.cat, to: t.value});
+    }
     else if (t.dataset.setting) await post("/api/settings", {[t.dataset.setting]: t.value});
     else if (t.id === "showDone") return render();
     else if (t.dataset.ffield) { filters[tab][t.dataset.ffield] = t.value; return render(); }
     else if (t.id === "hideStalled") { hideStalled = t.checked; return render(); }
     else return;
     status = await get("/api/status"); renderTabs();
-    if (t.dataset.stall) render();
+    if (t.dataset.stall || t.dataset.move) render();
   } catch (err) {
     alert(err.message);
   }

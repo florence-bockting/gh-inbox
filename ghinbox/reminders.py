@@ -21,15 +21,16 @@ def due(conn):
     now = datetime.now(timezone.utc)
     out = []
     for row in conn.execute(
-            "SELECT * FROM items WHERE done = 0 AND "
-            "(category = 'action' OR (category = 'mine' AND stalled = 1))"):
+            f"SELECT *, {db.SHOWN} AS tab FROM items WHERE done = 0 AND "
+            f"({db.SHOWN} = 'action' OR ({db.SHOWN} = 'mine' AND category = 'mine' "
+            "AND stalled = 1))"):
         last = db.parse_iso(row["last_notified"])
         if last is None:
             out.append(row)
             continue
         hours = row["remind_hours"]
         if hours is None:
-            hours = default_hours if row["category"] == "action" else 0
+            hours = default_hours if row["tab"] == "action" else 0
         if hours > 0 and now - last >= timedelta(hours=hours):
             out.append(row)
     return out
@@ -37,7 +38,7 @@ def due(conn):
 
 def _message(row):
     ref = f"{row['repo']}#{row['number']}" if row["number"] else row["repo"]
-    if row["category"] == "mine":
+    if row["tab"] == "mine":
         title = "Stalled: no activity on your " + ("PR" if row["kind"] == "pr" else "issue")
     else:
         title = LABELS.get(row["reason"], "Needs your action")
