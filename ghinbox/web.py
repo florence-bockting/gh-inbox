@@ -44,7 +44,8 @@ class Handler(BaseHTTPRequestHandler):
         with self.lock:
             if path == "/api/items":
                 return self._send(200, db.list_items(
-                    self.conn, params.get("category", "action"), params.get("done") == "1"))
+                    self.conn, params.get("category", "action"), params.get("done") == "1",
+                    params.get("order") == "asc"))
             if path == "/api/repos":
                 return self._send(200, db.list_repos(self.conn))
             if path == "/api/status":

@@ -25,6 +25,7 @@ def poll_loop(stop):
             # Stall times grow without a sync; check them every tick.
             sync.refresh_stalled(conn)
         try:
+            reminders.rate_warning(conn)
             sent = reminders.run(conn)
             if sent:
                 logging.info("pop-ups for %d items", sent)

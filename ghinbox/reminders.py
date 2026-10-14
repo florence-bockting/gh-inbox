@@ -46,6 +46,20 @@ def _message(row):
     return title, f"{ref}\n{row['title']}"
 
 
+def rate_warning(conn):
+    """Send one pop-up for each rate-limit window in which few requests are left."""
+    from . import sync
+    rate = sync.rate_status(conn)
+    if rate["level"] not in ("low", "paused") or db.get_meta(conn, "rate_warned") == str(rate["reset"]):
+        return
+    db.set_meta(conn, "rate_warned", str(rate["reset"]))
+    if db.get_setting(conn, "notify", float):
+        osdeps.notify(
+            "GitHub Inbox: few API requests left",
+            f"{rate['remaining']} of {rate['limit']} left until {rate['reset_clock']}. "
+            "Watch fewer repos or sync less often.", urgent=True)
+
+
 def run(conn):
     """Send every due pop-up and record it. Return the number of items handled."""
     rows = due(conn)

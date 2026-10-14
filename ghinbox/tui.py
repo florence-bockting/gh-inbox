@@ -110,6 +110,7 @@ class InboxApp(App):
         Binding("f", "filter", "Filter"),
         Binding("x", "clear_filters", "Clear filters"),
         Binding("t", "toggle_stalled", "Hide stalled"),
+        Binding("v", "reverse", "Reverse order"),
         Binding("h", "toggle_done", "Show done"),
         Binding("A", "all_done", "All done"),
         Binding("space", "watch", "Watch on/off"),
@@ -127,6 +128,7 @@ class InboxApp(App):
         self.filters = {tab: dict.fromkeys(fields) for tab, fields in FILTER_FIELDS.items()}
         self.options = {}  # (tab, field) -> values now offered in the drop-down list
         self.hide_stalled = False
+        self.oldest = dict.fromkeys(FILTER_FIELDS, False)  # tab -> oldest first
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -188,6 +190,14 @@ class InboxApp(App):
                  "poller running" if st["poller_running"] else "[b red]poller not running[/]"]
         if self.show_done:
             parts.append("showing done")
+        rate = st["rate"]
+        if rate.get("limit"):
+            api = f"API {rate['remaining']}/{rate['limit']}"
+            if rate["level"] == "paused":
+                api = f"[b red]{api} · sync paused until {rate['reset_clock']}[/]"
+            elif rate["level"] == "low":
+                api = f"[b yellow]{api} · few requests left[/]"
+            parts.append(api)
         if st["last_error"]:
             parts.append(f"[red]error: {st['last_error'][:80]}[/]")
         if not st["watched"]:
@@ -218,11 +228,16 @@ class InboxApp(App):
         self._fill("repos", db.list_repos(self.conn), lambda r: (
             Text("[x]" if r["watched"] else "[ ]", style="bold green" if r["watched"] else ""),
             r["full_name"], r["source"] or ""))
-        self._fill("settings", [{"key": k, "label": l} for k, l in SETTINGS], lambda s: (
-            s["label"], settings[s["key"]]))
+        info = [
+            {"key": None, "label": "API requests each hour (most)",
+             "value": f"about {st['estimate_per_hour']} of {rate.get('limit', 5000)}"},
+            {"key": None, "label": "Last sync used", "value": st["last_sync_cost"] or "?"},
+        ]
+        self._fill("settings", [{"key": k, "label": l, "value": settings[k]}
+                                for k, l in SETTINGS] + info, lambda s: (s["label"], s["value"]))
 
     def _items(self, category):
-        items = db.list_items(self.conn, category, self.show_done)
+        items = db.list_items(self.conn, category, self.show_done, self.oldest.get(category, False))
         if category not in FILTER_FIELDS:
             return items
         self._update_options(category, items)
@@ -362,6 +377,12 @@ class InboxApp(App):
             self.query_one("#hide-stalled", Checkbox).value = False
         self.refresh_all()
 
+    def action_reverse(self):
+        if self.tab in self.oldest:
+            self.oldest[self.tab] = not self.oldest[self.tab]
+            self.notify("Oldest first" if self.oldest[self.tab] else "Newest first")
+            self.refresh_all()
+
     def action_toggle_stalled(self):
         if self.tab == "mine":
             box = self.query_one("#hide-stalled", Checkbox)
@@ -391,7 +412,7 @@ class InboxApp(App):
 
     def action_edit_setting(self):
         it = self.current()
-        if not it or "label" not in it:
+        if not it or not it.get("key") or "label" not in it:
             return
         value = db.get_setting(self.conn, it["key"])
         self.ask(f"{it['label']}:", value,

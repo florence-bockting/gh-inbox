@@ -5,6 +5,8 @@ watch:  other notifications and new issues/PRs in watched repos.
 mine:   open issues and PRs you authored, in any repo.
 """
 
+import json
+import time
 from datetime import datetime, timedelta, timezone
 
 from . import db, gh, osdeps
@@ -215,7 +217,8 @@ def check_action_items(conn, login, touched):
     for row in rows:
         if row["done"] and row["key"] not in touched:
             continue
-        issue = gh.api_one(f"repos/{row['repo']}/issues/{row['number']}")
+        _, issue = db.cached_get(conn, f"repos/{row['repo']}/issues/{row['number']}",
+                                 keep_body=True)
         conn.execute(
             "UPDATE items SET title = ?, author = ?, state = ?, updated_at = ? "
             "WHERE key = ? AND category = 'action'",
@@ -265,9 +268,12 @@ def sync_new_items(conn, login):
         if not repo["watched"]:
             continue
         cutoff = db.parse_iso(repo["watch_since"]) - timedelta(days=days)
-        for it in gh.api_items(
-                f"repos/{repo['full_name']}/issues?state=all&sort=created&direction=desc"
-                "&per_page=50", paginate=False):
+        changed, issues = db.cached_get(
+            conn, f"repos/{repo['full_name']}/issues?state=all&sort=created&direction=desc"
+            "&per_page=50", context=f"{repo['watch_since']}|{days}")
+        if not changed:
+            continue
+        for it in issues:
             if db.parse_iso(it["created_at"]) < cutoff:
                 break
             if it["user"]["login"] == login:
@@ -340,6 +346,48 @@ def load_repo_candidates(conn):
     conn.commit()
 
 
+# ---- rate limit -------------------------------------------------------------
+
+# Below this share of the hourly limit, the sync waits for the reset.
+PAUSE_SHARE = 0.10
+# Below this share, the UIs show a warning and the daemon sends one pop-up.
+WARN_SHARE = 0.20
+
+
+def _store_rate(conn):
+    rate = dict(gh.RATE)
+    if rate:
+        db.set_meta(conn, "rate", json.dumps(rate))
+    return rate or None
+
+
+def _clock(epoch):
+    return datetime.fromtimestamp(epoch).strftime("%H:%M")
+
+
+def rate_status(conn):
+    """Return the stored rate limit with a level: ok, low or paused."""
+    rate = json.loads(db.get_meta(conn, "rate") or "{}")
+    if not rate:
+        return {"level": "unknown"}
+    if time.time() >= rate["reset"]:
+        rate["remaining"] = rate["limit"]  # the window reset since the last request
+    share = rate["remaining"] / rate["limit"]
+    rate["level"] = "paused" if share < PAUSE_SHARE else "low" if share < WARN_SHARE else "ok"
+    rate["reset_clock"] = _clock(rate["reset"])
+    return rate
+
+
+def estimate_per_hour(conn):
+    """Most requests each hour, if no ETag answer is 304."""
+    minutes = db.get_setting(conn, "poll_minutes", float)
+    open_checks = conn.execute(
+        "SELECT count(*) FROM items WHERE category = 'action' AND done = 0 "
+        "AND reason IN ('mention', 'team_mention', 'assign')").fetchone()[0]
+    per_sync = 6 + len(db.watched_repos(conn)) + open_checks
+    return round(per_sync * 60 / max(minutes, 1))
+
+
 # ---- entry point ------------------------------------------------------------
 
 def sync(conn):
@@ -349,8 +397,16 @@ def sync(conn):
         if not locked:
             return "busy"
         try:
-            login = db.get_meta(conn, "login") or gh.me()
+            # A 304 on `user` is free and still reports the rate limit.
+            _, user = db.cached_get(conn, "user", keep_body=True)
+            login = user["login"]
             db.set_meta(conn, "login", login)
+            start = _store_rate(conn)
+            if start and start["remaining"] < PAUSE_SHARE * start["limit"] \
+                    and time.time() < start["reset"]:
+                db.set_meta(conn, "paused_until", str(start["reset"]))
+                return "paused: few API requests left until " + _clock(start["reset"])
+            db.set_meta(conn, "paused_until", "")
             watched = db.watched_repos(conn)
             unread, touched = sync_notifications(conn, watched)
             sync_review_requests(conn, watched)
@@ -359,6 +415,10 @@ def sync(conn):
             sync_mine(conn, unread)
             conn.commit()
             refresh_stalled(conn)
+            db.cached_get(conn, "user", keep_body=True)
+            end = _store_rate(conn)
+            if start and end and start["reset"] == end["reset"]:
+                db.set_meta(conn, "last_sync_cost", str(start["remaining"] - end["remaining"]))
             db.set_meta(conn, "last_sync", db.now_iso())
             db.set_meta(conn, "last_error", "")
             return "ok"

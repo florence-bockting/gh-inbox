@@ -1,9 +1,12 @@
 """SQLite state: watched repos, items per tab, settings."""
 
+import json
 import os
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+
+from . import gh
 
 DATA_DIR = Path(os.environ.get("GH_INBOX_DIR", Path.home() / ".local/share/gh-inbox"))
 DB_PATH = DATA_DIR / "state.db"
@@ -51,6 +54,12 @@ CREATE TABLE IF NOT EXISTS items (
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT
+);
+CREATE TABLE IF NOT EXISTS etags (
+    path    TEXT PRIMARY KEY,
+    context TEXT,                     -- the ETag is valid only for this context
+    etag    TEXT,
+    body    TEXT                      -- JSON, kept only when the caller needs it on 304
 );
 CREATE TABLE IF NOT EXISTS meta (
     key   TEXT PRIMARY KEY,
@@ -110,6 +119,25 @@ def set_meta(conn, key, value):
     conn.commit()
 
 
+def cached_get(conn, path, context="", keep_body=False):
+    """GET with an ETag. Return (changed, body). A 304 answer is free.
+
+    On 304, changed is False. The body is then the stored body, or None without
+    keep_body. A change of `context` (for example a new watch start) drops the
+    stored ETag. The new ETag is stored in the open transaction: when the sync
+    fails, the rollback removes it, and the next sync gets the data again.
+    """
+    row = conn.execute("SELECT * FROM etags WHERE path = ?", (path,)).fetchone()
+    etag = row["etag"] if row and row["context"] == context else None
+    status, new_etag, body = gh.request(path, etag)
+    if status == 304:
+        return False, json.loads(row["body"]) if keep_body and row["body"] else None
+    conn.execute(
+        "INSERT OR REPLACE INTO etags (path, context, etag, body) VALUES (?, ?, ?, ?)",
+        (path, context, new_etag, json.dumps(body) if keep_body else None))
+    return True, body
+
+
 # ---- repos ------------------------------------------------------------------
 
 def list_repos(conn):
@@ -142,7 +170,8 @@ def set_watched(conn, full_name, watched):
 
 # ---- items ------------------------------------------------------------------
 
-def list_items(conn, category, show_done=False):
+def list_items(conn, category, show_done=False, oldest_first=False):
+    """Newest first: by the last event, or by the last update in My work."""
     sql = "SELECT * FROM items WHERE category = ?"
     if not show_done:
         sql += " AND done = 0"
@@ -150,7 +179,8 @@ def list_items(conn, category, show_done=False):
         # An item that needs your action shows only in the Action tab.
         sql += (" AND NOT EXISTS (SELECT 1 FROM items a WHERE a.key = items.key"
                 " AND a.category = 'action' AND a.done = 0)")
-    sql += " ORDER BY stalled DESC, coalesce(event_at, updated_at) DESC"
+    when = "updated_at" if category == "mine" else "coalesce(event_at, updated_at)"
+    sql += f" ORDER BY {when} {'ASC' if oldest_first else 'DESC'}"
     return [dict(r) for r in conn.execute(sql, (category,))]
 
 

@@ -66,7 +66,12 @@
               align-items: center; background: var(--panel); border: 1px solid var(--line);
               border-radius: 8px; padding: 16px; }
   .settings .help { color: var(--muted); font-size: 12px; }
+  .settings-note { color: var(--muted); margin: 12px 2px; }
+  .settings-note.error { color: var(--warn); }
   .error { color: var(--warn); margin: 8px 0; }
+  #banner:empty { display: none; }
+  #banner { background: var(--warn-soft); color: var(--warn); padding: 8px 20px;
+            border-bottom: 1px solid var(--line); }
   @media (max-width: 640px) {
     .row { grid-template-columns: 1fr; }
     .controls { justify-content: flex-start; }
@@ -82,6 +87,7 @@
   <span class="status" id="status"></span>
 </header>
 <nav id="tabs"></nav>
+<div id="banner"></div>
 <main id="main"></main>
 
 <script>
@@ -107,6 +113,7 @@ const FIELD_LABELS = {
 let tab = location.hash.slice(1) || "action";
 let filters = {action: {}, watch: {}, mine: {}};
 let hideStalled = false;
+let oldest = {action: false, watch: false, mine: false};
 let status = {};
 
 const $ = (sel) => document.querySelector(sel);
@@ -149,7 +156,17 @@ function renderStatus() {
   parts.push(status.poller_running ? "poller running"
              : `<span class="bad">poller not running</span>`);
   if (status.last_error) parts.push(`<span class="bad" title="${esc(status.last_error)}">sync error</span>`);
+  const r = status.rate || {};
+  if (r.limit) {
+    const api = `API ${r.remaining}/${r.limit}`;
+    parts.push(r.level === "ok" ? api : `<span class="bad">${api}</span>`);
+  }
   $("#status").innerHTML = parts.join(" · ");
+  $("#banner").textContent =
+    r.level === "paused" ? `Sync paused: only ${r.remaining} of ${r.limit} GitHub API requests left. ` +
+                           `The sync starts again at ${r.reset_clock}. Watch fewer repos, or sync less often.`
+    : r.level === "low" ? `Few GitHub API requests left: ${r.remaining} of ${r.limit} until ${r.reset_clock}. ` +
+                          `The sync pauses below 10%.` : "";
 }
 
 function itemRow(it) {
@@ -185,7 +202,8 @@ function itemRow(it) {
 }
 
 async function renderItems() {
-  let items = await get(`/api/items?category=${tab}&done=${$("#showDone").checked ? 1 : 0}`);
+  let items = await get(`/api/items?category=${tab}&done=${$("#showDone").checked ? 1 : 0}` +
+                        `&order=${oldest[tab] ? "asc" : "desc"}`);
   let toolbar = "";
   const fields = FILTER_FIELDS[tab] || [];
   const chosen = filters[tab] || {};
@@ -202,6 +220,7 @@ async function renderItems() {
     toolbar += `<label><input type="checkbox" id="hideStalled" ${hideStalled ? "checked" : ""}> Hide stalled</label>`;
   if (fields.some((f) => chosen[f]) || (tab === "mine" && hideStalled))
     toolbar += `<button class="btn" id="clearFilters">Clear filters</button>`;
+  toolbar += `<button class="btn" id="order" title="Reverse the order">${oldest[tab] ? "↑ Oldest first" : "↓ Newest first"}</button>`;
   if (tab === "watch") toolbar += `<span class="grow"></span><button class="btn" id="allDone">Mark all done</button>`;
   items = items.filter((i) => fields.every((f) => !chosen[f] || i[f] === chosen[f])
     && !(tab === "mine" && hideStalled && i.stalled));
@@ -227,6 +246,7 @@ async function renderRepos() {
 
 function renderSettings() {
   const s = status.settings;
+  const limit = (status.rate && status.rate.limit) || 5000;
   const field = (key, label, help) => `<label for="set-${key}">${label}</label>
     <input type="number" min="0" step="any" id="set-${key}" data-setting="${key}" value="${esc(s[key])}">
     <span class="help">${help}</span>`;
@@ -236,7 +256,13 @@ function renderSettings() {
     ${field("poll_minutes", "Sync every (minutes)", "How often the poller asks GitHub for changes.")}
     ${field("new_item_days", "Watch history (days)", "When you start to watch a repo, show its issues and PRs from this many days back.")}
     ${field("notify", "Pop-ups on (1) or off (0)", "Desktop pop-ups from the poller.")}
-  </div><div class="error" id="setError"></div>`;
+  </div><div class="error" id="setError"></div>
+  <p class="settings-note ${status.estimate_per_hour > 0.8 * limit ? "error" : ""}">
+    API use: at most about <b>${status.estimate_per_hour}</b> requests each hour
+    with ${status.watched} watched repos (limit ${limit}).
+    ${status.last_sync_cost != null ? `The last sync used ${esc(status.last_sync_cost)}.` : ""}
+    Unchanged repos cost nothing, because GitHub does not count an ETag answer "304".
+  </p>`;
 }
 
 async function render() {
@@ -251,6 +277,7 @@ async function render() {
 document.addEventListener("click", async (e) => {
   const t = e.target;
   if (t.dataset.tab) { tab = t.dataset.tab; location.hash = tab; return render(); }
+  if (t.id === "order") { oldest[tab] = !oldest[tab]; return render(); }
   if (t.id === "clearFilters") {
     filters[tab] = {};
     if (tab === "mine") hideStalled = false;

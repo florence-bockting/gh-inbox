@@ -121,6 +121,7 @@ Keys in the terminal UI:
 | `f` / `x` | Go to the filters / clear the filters |
 | `t` | Hide stalled items (My work) |
 | `h` | Show done items |
+| `v` | Reverse the order: newest first or oldest first |
 | `A` | Mark all Watch items done |
 | `Space` | Watch a repo, or stop (Repos) |
 | `a` / `L` | Add a repo / load your GitHub repos (Repos) |

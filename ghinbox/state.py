@@ -55,4 +55,7 @@ def status(conn):
         "counts": db.counts(conn),
         "settings": {k: db.get_setting(conn, k) for k in db.DEFAULT_SETTINGS},
         "watched": len(db.watched_repos(conn)),
+        "rate": sync.rate_status(conn),
+        "estimate_per_hour": sync.estimate_per_hour(conn),
+        "last_sync_cost": db.get_meta(conn, "last_sync_cost"),
     }
