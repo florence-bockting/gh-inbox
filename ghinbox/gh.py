@@ -3,6 +3,8 @@
 import json
 import subprocess
 
+from . import osdeps
+
 
 class GhError(RuntimeError):
     pass
@@ -31,7 +33,8 @@ def api(path, paginate=False, jq=None):
         cmd += ["--jq", jq]
     cmd.append(path)
     proc = subprocess.run(cmd, capture_output=True, text=True,
-                          encoding="utf-8", errors="replace", timeout=120)
+                          encoding="utf-8", errors="replace", timeout=120,
+                          **osdeps.NO_WINDOW)
     if proc.returncode != 0:
         raise GhError(f"gh api {path}: {proc.stderr.strip()}")
     return _decode_stream(proc.stdout)
@@ -64,7 +67,8 @@ def request(path, etag=None):
         cmd += ["-H", f"If-None-Match: {etag}"]
     cmd.append(path)
     proc = subprocess.run(cmd, capture_output=True, text=True,
-                          encoding="utf-8", errors="replace", timeout=120)
+                          encoding="utf-8", errors="replace", timeout=120,
+                          **osdeps.NO_WINDOW)
     # gh exits with 1 on a 304, so read the status line, not the exit code.
     out = proc.stdout.replace("\r\n", "\n")
     head, _, body = out.partition("\n\n")

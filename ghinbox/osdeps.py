@@ -1,6 +1,6 @@
 """The parts that differ between Linux, macOS and Windows.
 
-Only the Linux branch is tested. The macOS and Windows branches are untested.
+The Linux and Windows branches are tested. The macOS branch is untested.
 """
 
 import os
@@ -12,6 +12,10 @@ from http.server import ThreadingHTTPServer
 
 WINDOWS = sys.platform == "win32"
 MACOS = sys.platform == "darwin"
+
+# Extra subprocess.run arguments: on Windows, a console program started from a process
+# without a console (pythonw.exe) opens its own window unless told not to.
+NO_WINDOW = {"creationflags": subprocess.CREATE_NO_WINDOW} if WINDOWS else {}
 
 if WINDOWS:
     import msvcrt
@@ -50,9 +54,8 @@ def notify(title, body, urgent=False):
     else:
         cmd = ["notify-send", "--app-name=GitHub Inbox", "-u", "critical" if urgent else "normal",
                title, body]
-    kwargs = {"creationflags": subprocess.CREATE_NO_WINDOW} if WINDOWS else {}
     try:
-        subprocess.run(cmd, check=False, timeout=20, env=env, **kwargs)
+        subprocess.run(cmd, check=False, timeout=20, env=env, **NO_WINDOW)
     except (OSError, subprocess.TimeoutExpired):
         pass
 
