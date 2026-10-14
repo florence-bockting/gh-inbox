@@ -9,12 +9,14 @@
     --bg: #f6f7f9; --panel: #ffffff; --text: #1d2228; --muted: #67707b; --line: #e1e4e8;
     --accent: #2f6fdb; --accent-soft: #e6eefc; --warn: #b5541c; --warn-soft: #fbeee5;
     --ok: #237a4b; --ok-soft: #e4f4ea; --chip: #eef0f3; --pr: #7b45c4;
+    --mention: #a3367a; --mention-soft: #f9e6f1; --assign: #8a6100; --assign-soft: #fbf1d6;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #14171b; --panel: #1c2026; --text: #e3e6ea; --muted: #959ea8; --line: #2c323a;
       --accent: #6d9cf0; --accent-soft: #1f2c44; --warn: #f0a070; --warn-soft: #3a2619;
       --ok: #6fcf97; --ok-soft: #1a3326; --chip: #262b33; --pr: #b48cf0;
+      --mention: #f08cc8; --mention-soft: #3a1f30; --assign: #e8c060; --assign-soft: #33290f;
     }
   }
   * { box-sizing: border-box; }
@@ -53,6 +55,8 @@
   .badge { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 10px;
            background: var(--chip); color: var(--muted); margin-right: 6px; vertical-align: 1px; }
   .badge.review_requested { background: var(--accent-soft); color: var(--accent); }
+  .badge.mention, .badge.team_mention { background: var(--mention-soft); color: var(--mention); }
+  .badge.assign { background: var(--assign-soft); color: var(--assign); }
   .badge.stalled, .badge.reminded { background: var(--warn-soft); color: var(--warn); }
   .badge.activity { background: var(--ok-soft); color: var(--ok); }
   .badge.kind { background: none; border: 1px solid currentColor; font-weight: 600; }
@@ -175,6 +179,8 @@ function itemRow(it) {
   const badges = [`<span class="badge kind kind-${esc(it.kind)}">${esc(kind)}</span>`];
   if (it.category !== "mine")
     badges.push(`<span class="badge ${esc(it.reason)}">${esc(REASONS[it.reason] || it.reason)}</span>`);
+  if (it.assigned && it.reason !== "assign")
+    badges.push(`<span class="badge assign">${REASONS.assign}</span>`);
   if (it.stalled) badges.push(`<span class="badge stalled">stalled</span>`);
   if (it.activity) badges.push(`<span class="badge activity">new activity</span>`);
   if (it.category === "action" && it.notify_count > 1)

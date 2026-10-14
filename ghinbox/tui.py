@@ -292,6 +292,8 @@ class InboxApp(App):
         else:
             label, style = REASONS.get(it["reason"], (it["reason"] or "", "dim"))
             text = Text(label, style=style)
+            if it.get("assigned") and it["reason"] != "assign":
+                text.append(" " + REASONS["assign"][0], style=REASONS["assign"][1])
         if it["done"]:
             text.stylize("strike dim")
         return text

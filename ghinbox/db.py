@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS items (
     stall_days    REAL,
     stalled       INTEGER NOT NULL DEFAULT 0,
     activity      INTEGER NOT NULL DEFAULT 0,
+    assigned      INTEGER NOT NULL DEFAULT 0,   -- you are an assignee (Action only)
     PRIMARY KEY (key, category)
 );
 CREATE TABLE IF NOT EXISTS settings (
@@ -82,6 +83,9 @@ def connect():
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.executescript(SCHEMA)
+    # A database from an older version has no `assigned` column.
+    if "assigned" not in {r["name"] for r in conn.execute("PRAGMA table_info(items)")}:
+        conn.execute("ALTER TABLE items ADD COLUMN assigned INTEGER NOT NULL DEFAULT 0")
     conn.executemany(
         "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
         DEFAULT_SETTINGS.items(),

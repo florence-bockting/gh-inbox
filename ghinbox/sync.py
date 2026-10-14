@@ -198,15 +198,28 @@ def sync_mentions(conn, watched, touched):
     days = db.get_setting(conn, "new_item_days", float)
     since = _iso(_utcnow() - timedelta(days=days))
     _sync_search(conn, watched, touched, f"mentions:@me+updated:>={since}", "mention")
-    _sync_search(conn, watched, touched, "assignee:@me", "assign")
+    assigned = _sync_search(conn, watched, touched, "assignee:@me", "assign")
+    for row in conn.execute(
+            "SELECT key, done, assigned FROM items WHERE category = 'action'").fetchall():
+        now = row["key"] in assigned
+        if now == bool(row["assigned"]):
+            continue
+        # A new assignment opens a done item again.
+        if now and row["done"]:
+            _reopen(conn, row["key"], "action")
+        conn.execute("UPDATE items SET assigned = ? WHERE key = ? AND category = 'action'",
+                     (int(now), row["key"]))
 
 
 def _sync_search(conn, watched, touched, query, reason):
+    """Return the keys that the search found."""
+    found = set()
     for it in gh.api_items(f"search/issues?q=is:open+{query}&per_page=100", key="items"):
         repo = it["repository_url"].split("/repos/", 1)[1]
         if repo not in watched:
             continue
         key = f"{repo}#{it['number']}"
+        found.add(key)
         row = conn.execute(
             "SELECT updated_at FROM items WHERE key = ? AND category = 'action'",
             (key,)).fetchone()
@@ -220,6 +233,7 @@ def _sync_search(conn, watched, touched, query, reason):
         }, reopen=False)
         if row is None or row["updated_at"] != it["updated_at"]:
             touched.add(key)
+    return found
 
 
 # ---- mentions and assignments -----------------------------------------------
@@ -278,7 +292,8 @@ def check_action_items(conn, login, touched):
         else:
             mention_at = row["event_at"]
 
-        if _later(my_reply, mention_at):
+        # A mention stays open while you are an assignee.
+        if _later(my_reply, mention_at) and not row["assigned"]:
             _auto_done(conn, row["key"], "action")
         elif row["done"]:
             if _later(mention_at, row["done_at"]):
