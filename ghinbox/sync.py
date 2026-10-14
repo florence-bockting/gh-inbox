@@ -189,6 +189,34 @@ def sync_review_requests(conn, watched):
     return found
 
 
+def sync_mentions(conn, watched, touched):
+    """Find mentions with search too: GitHub does not always send a notification.
+
+    Add the key of each new or changed item to `touched`.
+    """
+    days = db.get_setting(conn, "new_item_days", float)
+    since = _iso(_utcnow() - timedelta(days=days))
+    for it in gh.api_items(f"search/issues?q=is:open+mentions:@me+updated:>={since}"
+                           "&per_page=100", key="items"):
+        repo = it["repository_url"].split("/repos/", 1)[1]
+        if repo not in watched:
+            continue
+        key = f"{repo}#{it['number']}"
+        row = conn.execute(
+            "SELECT updated_at FROM items WHERE key = ? AND category = 'action'",
+            (key,)).fetchone()
+        # No event_at on a known item: a higher reason (a review request) stays.
+        upsert(conn, {
+            "key": key, "category": "action", "repo": repo, "number": it["number"],
+            "kind": "pr" if "pull_request" in it else "issue", "title": it["title"],
+            "url": it["html_url"], "author": it["user"]["login"], "state": it["state"],
+            "reason": "mention", "updated_at": it["updated_at"],
+            "event_at": it["updated_at"] if row is None else None,
+        }, reopen=False)
+        if row is None or row["updated_at"] != it["updated_at"]:
+            touched.add(key)
+
+
 # ---- mentions and assignments -----------------------------------------------
 
 def _comments(repo, number, kind):
@@ -415,6 +443,7 @@ def sync(conn):
             watched = db.watched_repos(conn)
             unread, touched = sync_notifications(conn, watched)
             sync_review_requests(conn, watched)
+            sync_mentions(conn, watched, touched)
             check_action_items(conn, login, touched)
             sync_new_items(conn, login)
             sync_mine(conn, unread)
