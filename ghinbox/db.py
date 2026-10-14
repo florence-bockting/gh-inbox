@@ -12,12 +12,12 @@ DATA_DIR = Path(os.environ.get("GH_INBOX_DIR", Path.home() / ".local/share/gh-in
 DB_PATH = DATA_DIR / "state.db"
 
 DEFAULT_SETTINGS = {
-    "poll_minutes": "5",
+    "poll_minutes": "60",
     "default_remind_hours": "24",
-    "stall_days": "7",
+    "stall_days": "30",
     "review_wait_days": "3",
     "notify": "1",
-    "new_item_days": "7",
+    "new_item_days": "14",
     "notes_file": "~/gh-inbox/notes.csv",
 }
 # The other settings are numeric.

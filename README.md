@@ -103,14 +103,14 @@ shows the notification as unread.
 
 | | Linux | macOS | Windows |
 | :-- | :-- | :-- | :-- |
-| Status | Tested (Ubuntu, GNOME) | Not tested | Not tested |
+| Status | Tested (Ubuntu, GNOME) | Not tested | Tested (Windows 11) |
 | Python | 3.10 or later | 3.10 or later | 3.10 or later |
 | `gh` CLI | Yes | Yes | Yes |
 | Pop-ups | `notify-send` | Built in | Built in |
 
 ### Install
 
-1. Install the `gh` CLI. Then log in with your own GitHub account:
+1. Install the [`gh` CLI](https://cli.github.com). Then log in with your own GitHub account:
 
    ```bash
    gh auth login
@@ -124,27 +124,31 @@ shows the notification as unread.
    python3 -m venv .venv
    .venv/bin/pip install -e .
    ```
-
-   On Windows, use `py -m venv .venv` and `.venv\Scripts\pip install -e .`
-   In the next steps, use `.venv\Scripts\gh-inbox.exe` in place of
-   `.venv/bin/gh-inbox`.
-
-3. Start the app each time you log in:
-
+   On **Linux**
    ```bash
-   .venv/bin/gh-inbox install-autostart
+   python3 -m venv .venv
+   .venv/bin/pip install -e .
+   # start app in the browser
+   .venv/bin/gh-inbox web
+   ```
+   On **Windows**
+   ```bash
+   py -m venv .venv
+   .venv\Scripts\pip install -e .
+   # start app in the browser
+   .venv\Scripts\gh-inbox.exe web   
    ```
 
-   The command tells you how to start the app now, without a new login.
+3. Open http://127.0.0.1:8765 in your browser.
 
-4. Open http://127.0.0.1:8765 in your browser.
-
-5. Open the **Repos** tab. Click **Load my GitHub repos**, or type `owner/repo`.
+4. Open the **Repos** tab. Click **Load my GitHub repos**, or type `owner/repo`.
    Then select the repos to watch.
+
+5. Click **Sync** and wait for the updates to appear.
 
 ### Use the app
 
-The background process (the "daemon") syncs with GitHub every 5 minutes. It
+The background process (the "daemon") syncs with GitHub every 60 minutes. It
 sends the pop-ups and serves the web page.
 
 | Command | What it does |
@@ -154,8 +158,8 @@ sends the pop-ups and serves the web page.
 | `gh-inbox tui` | Opens the terminal UI |
 | `gh-inbox sync` | Runs one sync now |
 | `gh-inbox test-popup` | Sends 2 test pop-ups |
-| `gh-inbox install-autostart` | Starts the daemon at each login |
-| `gh-inbox remove-autostart` | Stops the start at login |
+
+On Windows use `gh-inbox.exe [command]`
 
 Keys in the terminal UI:
 
@@ -259,7 +263,7 @@ Use another port when the real daemon runs. Set `web.PORT` in a test script.
 
 ### Test the app on another system
 
-The macOS and Windows code is not tested. Do these checks on the new system.
+The macOS code is not tested. Do these checks on the new system.
 Report the OS version, the Python version, and the output of each step.
 
 Use test data for all steps (see [Use test data](#use-test-data)).
@@ -292,14 +296,7 @@ Use test data for all steps (see [Use test data](#use-test-data)).
 
 7. **Terminal UI.** Run `gh-inbox tui`. Press `1`–`5`, `d`, `f` and `x`.
 
-8. **Login start.** Run `gh-inbox install-autostart`. Log out, then log in.
-   The web page must show "poller running".
-   - On macOS, the file is `~/Library/LaunchAgents/io.github.gh-inbox.plist`.
-     Errors go to `~/.local/share/gh-inbox/daemon.err`.
-   - On Windows, the file is `gh-inbox.vbs` in the Startup folder.
-     No console window may open.
-
-9. **Clean up.** Run `gh-inbox remove-autostart`. Remove the test data folder.
+8. **Clean up.** Remove the test data folder.
 
 The daemon writes a log to `daemon.log` in the data folder.
 

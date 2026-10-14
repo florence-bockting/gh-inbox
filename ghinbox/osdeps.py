@@ -4,14 +4,11 @@ Only the Linux branch is tested. The macOS and Windows branches are untested.
 """
 
 import os
-import plistlib
-import shutil
 import socket
 import subprocess
 import sys
 from contextlib import contextmanager
 from http.server import ThreadingHTTPServer
-from pathlib import Path
 
 WINDOWS = sys.platform == "win32"
 MACOS = sys.platform == "darwin"
@@ -20,9 +17,6 @@ if WINDOWS:
     import msvcrt
 else:
     import fcntl
-
-# The command that starts the daemon. It runs inside the current (virtual) environment.
-DAEMON_ARGS = [sys.executable, "-m", "ghinbox", "daemon"]
 
 # PowerShell AppUserModelID: Windows shows toasts only for a registered app ID.
 _PS_APP_ID = r"{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe"
@@ -61,62 +55,6 @@ def notify(title, body, urgent=False):
         subprocess.run(cmd, check=False, timeout=20, env=env, **kwargs)
     except (OSError, subprocess.TimeoutExpired):
         pass
-
-
-# ---- start at login ---------------------------------------------------------
-
-def autostart_path():
-    if WINDOWS:
-        return (Path(os.environ["APPDATA"]) / "Microsoft/Windows/Start Menu/Programs/Startup"
-                / "gh-inbox.vbs")
-    if MACOS:
-        return Path.home() / "Library/LaunchAgents/io.github.gh-inbox.plist"
-    return Path.home() / ".config/autostart/gh-inbox.desktop"
-
-
-def install_autostart(log_dir):
-    """Write the login entry. Return a hint that tells how to start the daemon now."""
-    path = autostart_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if WINDOWS:
-        # pythonw.exe runs without a console window. Window style 0 hides it as well.
-        pythonw = Path(sys.executable).with_name("pythonw.exe")
-        command = f'""{pythonw}"" -m ghinbox daemon'
-        path.write_text(f'CreateObject("WScript.Shell").Run "{command}", 0, False\r\n')
-        return f'Run "{path}" to start it now.'
-    if MACOS:
-        # A login agent does not get the shell PATH. Add the folder of gh to it.
-        dirs = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
-        gh = shutil.which("gh")
-        if gh:
-            dirs.insert(0, str(Path(gh).parent))
-        plist = {
-            "Label": "io.github.gh-inbox",
-            "ProgramArguments": DAEMON_ARGS,
-            "RunAtLoad": True,
-            "EnvironmentVariables": {"PATH": ":".join(dict.fromkeys(dirs))},
-            "StandardErrorPath": str(Path(log_dir) / "daemon.err"),
-        }
-        with open(path, "wb") as f:
-            plistlib.dump(plist, f)
-        return f"Run `launchctl load {path}` to start it now."
-    path.write_text(
-        "[Desktop Entry]\n"
-        "Type=Application\n"
-        "Name=GitHub Inbox poller\n"
-        "Comment=Syncs GitHub notifications and sends reminders\n"
-        f"Exec={' '.join(DAEMON_ARGS)}\n"
-        "NoDisplay=true\n"
-        "X-GNOME-Autostart-enabled=true\n")
-    return "Run `gh-inbox daemon &` to start it now."
-
-
-def remove_autostart():
-    path = autostart_path()
-    if MACOS and path.exists():
-        subprocess.run(["launchctl", "unload", str(path)], check=False)
-    path.unlink(missing_ok=True)
-    return path
 
 
 # ---- one sync at a time -----------------------------------------------------

@@ -1,4 +1,4 @@
-"""Command line: gh-inbox daemon | web | tui | sync | test-popup | install-autostart | remove-autostart."""
+"""Command line: gh-inbox daemon | web | tui | sync | test-popup."""
 
 import argparse
 import urllib.request
@@ -27,8 +27,7 @@ def cmd_web():
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="gh-inbox", description="A better GitHub notifications inbox.")
-    parser.add_argument("command", choices=[
-        "daemon", "web", "tui", "sync", "test-popup", "install-autostart", "remove-autostart"])
+    parser.add_argument("command", choices=["daemon", "web", "tui", "sync", "test-popup"])
     args = parser.parse_args(argv)
     if args.command == "daemon":
         from . import daemon
@@ -44,8 +43,3 @@ def main(argv=None):
         osdeps.notify("GitHub Inbox test", "A normal pop-up.")
         osdeps.notify("GitHub Inbox test", "An urgent pop-up, as for a reminder.", urgent=True)
         print("Sent 2 pop-ups: one normal, one urgent.")
-    elif args.command == "install-autostart":
-        hint = osdeps.install_autostart(db.DATA_DIR)
-        print(f"Wrote {osdeps.autostart_path()}. The poller starts at your next login. {hint}")
-    elif args.command == "remove-autostart":
-        print(f"Removed {osdeps.remove_autostart()}.")
