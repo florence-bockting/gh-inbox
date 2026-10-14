@@ -18,7 +18,10 @@ DEFAULT_SETTINGS = {
     "review_wait_days": "3",
     "notify": "1",
     "new_item_days": "7",
+    "notes_file": "~/gh-inbox/notes.csv",
 }
+# The other settings are numeric.
+TEXT_SETTINGS = {"notes_file"}
 
 TABS = ("action", "watch", "mine", "todo")
 # The tab that shows an item: the tab you moved it to, or the tab that the sync chose.
@@ -127,7 +130,15 @@ def get_setting(conn, key, cast=str):
 def set_setting(conn, key, value):
     if key not in DEFAULT_SETTINGS:
         raise KeyError(key)
-    float(value)  # every setting is numeric
+    if key in TEXT_SETTINGS:
+        value = str(value).strip()
+        if not value:
+            raise ValueError(f"{key} must not be empty")
+    else:
+        float(value)
+    if key == "notes_file":
+        from . import notes  # notes imports db
+        notes.move(get_setting(conn, key), value)
     conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, str(value)))
     conn.commit()
 
@@ -209,7 +220,12 @@ def list_items(conn, category, show_done=False, oldest_first=False):
     # High priority first, then overdue reviews, in both orders.
     sql += (f" ORDER BY priority DESC, waiting_for IS NOT NULL DESC, "
             f"{when} {'ASC' if oldest_first else 'DESC'}")
-    return [dict(r) for r in conn.execute(sql, (category,))]
+    from . import notes  # notes imports db
+    saved = notes.load(get_setting(conn, "notes_file"))
+    items = [dict(r) for r in conn.execute(sql, (category,))]
+    for it in items:
+        it["note"] = (saved.get(it["key"]) or {}).get("note") or ""
+    return items
 
 
 def counts(conn):

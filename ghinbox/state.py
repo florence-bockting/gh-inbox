@@ -2,7 +2,7 @@
 
 import time
 
-from . import db, sync
+from . import db, notes, sync
 
 # The poller writes a heartbeat each round. Older than this means it is not running.
 HEARTBEAT_MAX_AGE = 180
@@ -33,6 +33,12 @@ def apply(conn, action, body):
     elif action == "items/stall":
         db.set_stall_days(conn, body["key"], _hours(body.get("days")))
         sync.refresh_stalled(conn)
+    elif action == "items/note":
+        item = conn.execute("SELECT * FROM items WHERE key = ? LIMIT 1",
+                            (body["key"],)).fetchone()
+        if item is None:
+            raise KeyError(body["key"])
+        notes.save(db.get_setting(conn, "notes_file"), item, body.get("body"))
     elif action == "repos/watch":
         db.set_watched(conn, body["full_name"], bool(body["watched"]))
     elif action == "repos/add":

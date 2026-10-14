@@ -48,6 +48,7 @@ SETTINGS = [
     ("poll_minutes", "Sync every (minutes)"),
     ("new_item_days", "Watch history (days)"),
     ("notify", "Pop-ups on (1) / off (0)"),
+    ("notes_file", "Notes file"),
 ]
 
 
@@ -111,6 +112,7 @@ class InboxApp(App):
         Binding("s", "stall", "Stall days"),
         Binding("m", "move", "Move to tab"),
         Binding("p", "priority", "High priority"),
+        Binding("n", "note", "Note"),
         Binding("f", "filter", "Filter"),
         Binding("x", "clear_filters", "Clear filters"),
         Binding("t", "toggle_stalled", "Hide stalled"),
@@ -303,6 +305,9 @@ class InboxApp(App):
         text = Text(it["title"] or "")
         if it.get("waiting_for"):
             text.stylize("bold #f0a070")
+        if it.get("note"):
+            note = it["note"].splitlines()[0]
+            text.append("  ✎ " + (note[:40] + "…" if len(note) > 40 else note), style="dim italic")
         if it["priority"]:
             text = Text("★ ", style="bold red") + text
         return text
@@ -378,6 +383,13 @@ class InboxApp(App):
         if it and "category" in it:
             self.do("items/priority", {"key": it["key"], "category": it["category"],
                                        "high": not it["priority"]})
+
+    def action_note(self):
+        it = self.current()
+        if not it or "category" not in it:
+            return
+        self.ask("Note (empty = delete):", it.get("note") or "",
+                 lambda v: v is not None and self.do("items/note", {"key": it["key"], "body": v}))
 
     def action_move(self):
         it = self.current()

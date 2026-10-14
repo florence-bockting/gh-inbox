@@ -24,11 +24,23 @@ changes anything on GitHub. All data stays on your computer.
 | **My work** | Your open issues and PRs in all repos. An item is "stalled" when it has no activity for N days. A PR shows "in review" while a review is pending, and "review overdue" after N days. |
 | **ToDo** | Your own tasks: issues and PRs where you mention yourself, in the repos that you watch. You can also move any item here. |
 | **Repos** | The repos that you watch in this app |
-| **Settings** | Stall time, reminder interval, sync interval and pop-ups |
+| **Settings** | Stall time, review wait, reminder interval, sync interval, pop-ups and the notes file |
 
 Each item has a **PR**, **Issue** or **Draft PR** label. You can filter
 Action, Watch, My work and ToDo by repo, kind and type. In My work, you can also hide
 the stalled items, or show only the PRs with an overdue review.
+
+### Notes
+
+- Click the file icon on an item, or press `n` in the terminal UI. Write the note.
+  In the web page, Ctrl+Enter saves it. An empty note deletes it.
+- A note belongs to the issue or PR. It shows in every tab with that item.
+- The app saves the notes in a CSV file. The default is `~/gh-inbox/notes.csv`.
+  You can edit the file by hand. The app reads it again at each page load.
+- When you change the "Notes file" setting, the app moves the file. If a file
+  exists at the new path, the app refuses.
+- The terminal UI shows and edits only the first line of a note. Edit notes
+  with more than one line in the web page.
 
 ### Reminders
 
@@ -51,11 +63,11 @@ The app finds out when you act:
   A new mention opens the item again.
 - **To-do:** you mention yourself, for example "@me open a follow-up PR".
   The item goes to ToDo, not to Action. Your later replies do not mark it
-  done. Click **Done**, or close the item. A newer self-mention opens it again.
+  done. Click the checkmark, or close the item. A newer self-mention opens it again.
 - **Assignment:** the item goes to "done" when the issue closes, or when you are
   no longer assigned.
 
-You can also click **Done** yourself. "Done" changes only the app. GitHub still
+You can also click the checkmark yourself. "Done" changes only the app. GitHub still
 shows the notification as unread.
 
 ### Requirements
@@ -123,6 +135,7 @@ Keys in the terminal UI:
 | `1`–`6` | Go to a tab |
 | `o` or `Enter` | Open the item in the browser |
 | `d` | Done, or undo |
+| `n` | Write or change the note of the item |
 | `r` | Set the reminder interval of the item |
 | `s` | Set the stall time of the item (My work) |
 | `f` / `x` | Go to the filters / clear the filters |
@@ -141,7 +154,8 @@ Keys in the terminal UI:
 
 - The web page listens only on `127.0.0.1`. Other computers cannot open it.
 - The data is in `~/.local/share/gh-inbox/`. Remove this folder to remove all
-  data.
+  data. Your notes are in a different place: the "Notes file" setting.
+- The app does not send your notes to GitHub.
 - The pop-ups show issue titles. Other people can see them on your screen.
 
 ---
@@ -165,6 +179,7 @@ Keys in the terminal UI:
 | `ghinbox/db.py` | SQLite schema, settings and queries |
 | `ghinbox/sync.py` | Gets data from GitHub and sorts it into the tabs |
 | `ghinbox/reminders.py` | Finds the items that need a pop-up now |
+| `ghinbox/notes.py` | Reads and writes the notes CSV |
 | `ghinbox/osdeps.py` | All code that differs between Linux, macOS and Windows |
 | `ghinbox/state.py` | The UI actions that both UIs share |
 | `ghinbox/daemon.py` | Timer for sync and pop-ups, plus the web server |

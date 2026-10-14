@@ -10,7 +10,7 @@ that the app supports the scenario now.
 | [x] | 3. I watch the new issues and pull requests in specific repos. | Watch |
 | [x] | 4. I mention myself in an item as a to-do. | ToDo |
 | [x] | 5. I wait for a review that I requested on my pull request. | My work |
-| [ ] | 6. I attach a note to an item. | All tabs |
+| [x] | 6. I attach a note to an item. | All tabs |
 
 ## 1. My issues and pull requests
 
@@ -135,11 +135,16 @@ I write a short note on an item, for example "wait for the CI fix".
 - **C. A note with a date.** The note comes back as a reminder on that date.
   This also covers scenario 4 without a GitHub comment.
 
-**Open questions:**
+**Decision:** option B, but in a CSV file, not in a table. The setting "Notes
+file" gives the path. The default is `~/gh-inbox/notes.csv`.
 
-- Where do I edit the note? Options: inline in the web UI, a key in the TUI,
-  or both.
-- Does the list show the full note, or only an icon?
-- Does a done item keep its note?
+**Implemented:** `ghinbox/notes.py`.
 
-Notes stay in the local database. The app does not send them to GitHub.
+- The CSV is the only store. Its columns are `key, repo, number, title, url,
+  note, updated_at`. I can edit it by hand.
+- I edit a note inline in the web UI, or with the key `n` in the TUI.
+- The list shows the first 2 lines of the note under the repo line.
+- A done item keeps its note.
+- A change of the setting moves the file. The app refuses if a file exists at
+  the new path.
+- The app does not send notes to GitHub.
