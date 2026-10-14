@@ -26,13 +26,41 @@ changes anything on GitHub. All data stays on your computer.
 | **Repos** | The repos that you watch in this app |
 | **Settings** | Stall time, review wait, reminder interval, sync interval, pop-ups and the notes file |
 
-Each item has a **PR**, **Issue** or **Draft PR** label. You can filter
-Action, Watch, My work and ToDo by repo, kind and type. In My work, you can also hide
-the stalled items, or show only the PRs with an overdue review.
+Each item has a **PR**, **Issue** or **Draft PR** label. In Action, an item
+can have a **mention** tag and an **assigned** tag at the same time. The two tags
+have different colors.
+
+You can filter Action, Watch, My work and ToDo by repo and kind. You can also
+filter Action by type. In My work, you can also hide the stalled items, or show
+only the PRs with an overdue review.
+
+### Icons
+
+Each item has these buttons in the web page.
+
+| Icon | Meaning | Key in the terminal UI |
+| :-- | :-- | :-- |
+| ☆ / ★ | Give the item high priority, or remove it | `p` |
+| <img src="docs/icons/done.svg" height="16" alt="done"> | Mark the item done | `d` |
+| <img src="docs/icons/undo.svg" height="16" alt="undo"> | Undo done | `d` |
+| <img src="docs/icons/note.svg" height="16" alt="note"> | Add or edit a note. The icon is blue when the item has a note. | `n` |
+| <img src="docs/icons/more.svg" height="16" alt="more"> | Show more options: reminder, stall time and **Move to…** | — |
+| <img src="docs/icons/reminder.svg" height="16" alt="reminder"> | Remind me every N hours (behind <img src="docs/icons/more.svg" height="16" alt="more">) | `r` |
+| <img src="docs/icons/stall.svg" height="16" alt="stall"> | Stalled after N days, in My work (behind <img src="docs/icons/more.svg" height="16" alt="more">) | `s` |
+
+### Priority and tabs
+
+- Click ☆ on an item, or press `p` in the terminal UI. The item gets high
+  priority. High-priority items come first in the list.
+- Click <img src="docs/icons/more.svg" height="16" alt="more"> on an item. Then use **Move to…**. In the
+  terminal UI, press `m`. The item goes to
+  Action, Watch, My work or ToDo.
+- The pop-ups follow the tab that shows the item. A moved item gives stalled
+  pop-ups only when it is your own item in My work.
 
 ### Notes
 
-- Click the file icon on an item, or press `n` in the terminal UI. Write the note.
+- Click <img src="docs/icons/note.svg" height="16" alt="note"> on an item, or press `n` in the terminal UI. Write the note.
   In the web page, Ctrl+Enter saves it. An empty note deletes it.
 - A note belongs to the issue or PR. It shows in every tab with that item.
 - The app saves the notes in a CSV file. The default is `~/gh-inbox/notes.csv`.
@@ -46,9 +74,9 @@ the stalled items, or show only the PRs with an overdue review.
 
 - A new action item or to-do gives a pop-up.
 - The pop-up comes again after the reminder interval until you act. The default
-  interval is 24 hours. You can set an interval for each item. 0 turns the
+  interval is 24 hours. You can set an interval for each item (<img src="docs/icons/reminder.svg" height="16" alt="reminder">). 0 turns the
   reminders off.
-- A stalled item gives one pop-up. Set a reminder interval on the item to get
+- A stalled item gives one pop-up. Set a reminder interval (<img src="docs/icons/reminder.svg" height="16" alt="reminder">) on the item to get
   more.
 - A PR with an overdue review gives a pop-up. The pop-up comes again after the
   reminder interval. To start the wait time again, request the review again, or
@@ -60,14 +88,15 @@ The app finds out when you act:
 - **Review request:** GitHub removes the request when you submit a review. The
   item then goes to "done".
 - **Mention:** the item goes to "done" when you reply after the last mention.
-  A new mention opens the item again.
+  A new mention opens the item again. While you are an assignee, the item
+  stays open.
 - **To-do:** you mention yourself, for example "@me open a follow-up PR".
   The item goes to ToDo, not to Action. Your later replies do not mark it
-  done. Click the checkmark, or close the item. A newer self-mention opens it again.
+  done. Click <img src="docs/icons/done.svg" height="16" alt="done">, or close the item. A newer self-mention opens it again.
 - **Assignment:** the item goes to "done" when the issue closes, or when you are
-  no longer assigned.
+  no longer assigned. A new assignment opens a done item again.
 
-You can also click the checkmark yourself. "Done" changes only the app. GitHub still
+You can also click <img src="docs/icons/done.svg" height="16" alt="done"> yourself. "Done" changes only the app. GitHub still
 shows the notification as unread.
 
 ### Requirements
@@ -138,6 +167,8 @@ Keys in the terminal UI:
 | `n` | Write or change the note of the item |
 | `r` | Set the reminder interval of the item |
 | `s` | Set the stall time of the item (My work) |
+| `m` | Move the item to another tab |
+| `p` | Give the item high priority, or remove it |
 | `f` / `x` | Go to the filters / clear the filters |
 | `t` | Hide stalled items (My work) |
 | `w` | Show only the PRs with an overdue review (My work) |
@@ -195,14 +226,16 @@ Keys in the terminal UI:
    The other notifications go to **Watch**.
 2. **Review requests:** the search `review-requested:@me` is the source of
    truth. A request that leaves the search result goes to "done".
-3. **Mentions and assignments:** get the issue. Load the comments only when the
-   issue changed. Compare your last reply with the last mention.
+3. **Mentions and assignments:** GitHub does not always send a notification.
+   The searches `mentions:@me` (recent items only) and `assignee:@me` (all open
+   items) find the other items. Then get the issue. Load the comments only when
+   the issue changed. Compare your last reply with the last mention.
 4. **New items:** get the newest issues and PRs of each watched repo.
 5. **My work:** the search `author:@me is:open`. Then compute the stalled flag.
 
 The table `items` has the primary key `(key, category)`. One issue can be in
 Action and in My work at the same time. A sync changes only the GitHub fields.
-Your own values stay: done, reminder interval and stall time.
+Your own values stay: done, reminder interval, stall time, priority and tab.
 
 ### Rules
 
