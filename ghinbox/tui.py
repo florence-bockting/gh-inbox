@@ -108,6 +108,7 @@ class InboxApp(App):
         Binding("r", "remind", "Remind every"),
         Binding("s", "stall", "Stall days"),
         Binding("m", "move", "Move to tab"),
+        Binding("p", "priority", "High priority"),
         Binding("f", "filter", "Filter"),
         Binding("x", "clear_filters", "Clear filters"),
         Binding("t", "toggle_stalled", "Hide stalled"),
@@ -214,14 +215,14 @@ class InboxApp(App):
         settings = st["settings"]
         self._fill("action", self._items("action"), lambda it: (
             self._kind(it), self._badge(it), it["repo"] + (f"#{it['number']}" if it["number"] else ""),
-            Text(it["title"] or ""), it["author"] or "", ago(it["event_at"]),
+            self._title(it), it["author"] or "", ago(it["event_at"]),
             f"{it['remind_hours']:g}h" if it["remind_hours"] is not None
             else f"{float(settings['default_remind_hours']):g}h"))
         self._fill("watch", self._items("watch"), lambda it: (
             self._kind(it), self._badge(it), it["repo"] + (f"#{it['number']}" if it["number"] else ""),
-            Text(it["title"] or ""), it["author"] or "", ago(it["event_at"])))
+            self._title(it), it["author"] or "", ago(it["event_at"])))
         self._fill("mine", self._items("mine"), lambda it: (
-            self._kind(it), self._badge(it), f"{it['repo']}#{it['number']}", Text(it["title"] or ""),
+            self._kind(it), self._badge(it), f"{it['repo']}#{it['number']}", self._title(it),
             ago(it["updated_at"]),
             f"{it['stall_days']:g}d" if it["stall_days"] is not None
             else f"{float(settings['stall_days']):g}d (default)",
@@ -281,6 +282,12 @@ class InboxApp(App):
         text = Text(label, style=style)
         if it["done"]:
             text.stylize("strike dim")
+        return text
+
+    def _title(self, it):
+        text = Text(it["title"] or "")
+        if it["priority"]:
+            text = Text("★ ", style="bold red") + text
         return text
 
     def _badge(self, it):
@@ -344,6 +351,12 @@ class InboxApp(App):
         if it and "category" in it:
             self.do("items/done", {"key": it["key"], "category": it["category"],
                                    "done": not it["done"]})
+
+    def action_priority(self):
+        it = self.current()
+        if it and "category" in it:
+            self.do("items/priority", {"key": it["key"], "category": it["category"],
+                                       "high": not it["priority"]})
 
     def action_move(self):
         it = self.current()

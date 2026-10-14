@@ -49,6 +49,10 @@
          border-top: 1px solid var(--line); align-items: center; }
   .row:first-child { border-top: 0; }
   .row.done { opacity: .55; }
+  .row.high { box-shadow: inset 3px 0 0 var(--warn); }
+  .star { border: 0; background: none; cursor: pointer; font-size: 16px; color: var(--muted);
+          padding: 0 6px 0 0; vertical-align: -1px; }
+  .row.high .star { color: var(--warn); }
   .title a { color: var(--text); text-decoration: none; font-weight: 500; }
   .title a:hover { color: var(--accent); text-decoration: underline; }
   .meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
@@ -206,8 +210,10 @@ function itemRow(it) {
       .map(([id, label]) => `<option value="${id}">${label}</option>`).join("")}</select>`;
   controls += `<button class="btn" data-done="${key}" data-cat="${cat}" data-val="${it.done ? 0 : 1}">
     ${it.done ? "Undo" : "Done"}</button>`;
-  return `<div class="row ${it.done ? "done" : ""}">
-    <div><div class="title">${badges.join("")}<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title)}</a></div>
+  const star = `<button class="star" data-prio="${key}" data-cat="${cat}" data-val="${it.priority ? 0 : 1}"
+    title="${it.priority ? "Remove high priority" : "Mark as high priority"}">${it.priority ? "★" : "☆"}</button>`;
+  return `<div class="row ${it.done ? "done" : ""} ${it.priority ? "high" : ""}">
+    <div><div class="title">${star}${badges.join("")}<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title)}</a></div>
     <div class="meta">${esc(ref)} · ${it.author ? "by " + esc(it.author) + " · " : ""}${when}</div></div>
     <div class="controls">${controls}</div></div>`;
 }
@@ -292,6 +298,10 @@ document.addEventListener("click", async (e) => {
   if (t.id === "clearFilters") {
     filters[tab] = {};
     if (tab === "mine") hideStalled = false;
+    return render();
+  }
+  if (t.dataset.prio) {
+    await post("/api/items/priority", {key: t.dataset.prio, category: t.dataset.cat, high: t.dataset.val === "1"});
     return render();
   }
   if (t.dataset.done) {

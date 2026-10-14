@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS items (
     activity      INTEGER NOT NULL DEFAULT 0,
     assigned      INTEGER NOT NULL DEFAULT 0,   -- you are an assignee (Action only)
     moved_to      TEXT,               -- the tab you moved the item to
+    priority      INTEGER NOT NULL DEFAULT 0,   -- 1 = high: first in the list
     PRIMARY KEY (key, category)
 );
 CREATE TABLE IF NOT EXISTS settings (
@@ -90,7 +91,8 @@ def connect():
     conn.executescript(SCHEMA)
     # A database from an older version does not have all the columns.
     have = {r["name"] for r in conn.execute("PRAGMA table_info(items)")}
-    for column, decl in [("assigned", "INTEGER NOT NULL DEFAULT 0"), ("moved_to", "TEXT")]:
+    for column, decl in [("assigned", "INTEGER NOT NULL DEFAULT 0"), ("moved_to", "TEXT"),
+                         ("priority", "INTEGER NOT NULL DEFAULT 0")]:
         if column not in have:
             conn.execute(f"ALTER TABLE items ADD COLUMN {column} {decl}")
     conn.executemany(
@@ -194,7 +196,8 @@ def list_items(conn, category, show_done=False, oldest_first=False):
         sql += (" AND NOT EXISTS (SELECT 1 FROM items a WHERE a.key = items.key"
                 " AND coalesce(a.moved_to, a.category) = 'action' AND a.done = 0)")
     when = "updated_at" if category == "mine" else "coalesce(event_at, updated_at)"
-    sql += f" ORDER BY {when} {'ASC' if oldest_first else 'DESC'}"
+    # High priority first, in both orders.
+    sql += f" ORDER BY priority DESC, {when} {'ASC' if oldest_first else 'DESC'}"
     return [dict(r) for r in conn.execute(sql, (category,))]
 
 
@@ -215,6 +218,12 @@ def mark_all_done(conn, category):
     conn.execute(
         f"UPDATE items SET done = 1, done_at = ?, auto_done = 0 WHERE {SHOWN} = ? AND done = 0",
         (now_iso(), category))
+    conn.commit()
+
+
+def set_priority(conn, key, category, high):
+    conn.execute("UPDATE items SET priority = ? WHERE key = ? AND category = ?",
+                 (int(high), key, category))
     conn.commit()
 
 
