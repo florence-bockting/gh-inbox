@@ -268,6 +268,11 @@ def sync_new_items(conn, login):
         if not repo["watched"]:
             continue
         cutoff = db.parse_iso(repo["watch_since"]) - timedelta(days=days)
+        # A shorter watch history removes the new items that are now too old.
+        conn.execute(
+            "DELETE FROM items WHERE repo = ? AND category = 'watch' "
+            "AND reason IN ('new_issue', 'new_pr') AND event_at < ?",
+            (repo["full_name"], _iso(cutoff)))
         changed, issues = db.cached_get(
             conn, f"repos/{repo['full_name']}/issues?state=all&sort=created&direction=desc"
             "&per_page=50", context=f"{repo['watch_since']}|{days}")
