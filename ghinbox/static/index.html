@@ -10,6 +10,7 @@
     --accent: #2f6fdb; --accent-soft: #e6eefc; --warn: #b5541c; --warn-soft: #fbeee5;
     --ok: #237a4b; --ok-soft: #e4f4ea; --chip: #eef0f3; --pr: #7b45c4;
     --mention: #a3367a; --mention-soft: #f9e6f1; --assign: #8a6100; --assign-soft: #fbf1d6;
+    --reminder: #0f7b7b; --reminder-soft: #e0f3f2;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -17,6 +18,7 @@
       --accent: #6d9cf0; --accent-soft: #1f2c44; --warn: #f0a070; --warn-soft: #3a2619;
       --ok: #6fcf97; --ok-soft: #1a3326; --chip: #262b33; --pr: #b48cf0;
       --mention: #f08cc8; --mention-soft: #3a1f30; --assign: #e8c060; --assign-soft: #33290f;
+      --reminder: #5fd0cc; --reminder-soft: #163332;
     }
   }
   * { box-sizing: border-box; }
@@ -61,6 +63,7 @@
   .badge.review_requested { background: var(--accent-soft); color: var(--accent); }
   .badge.mention, .badge.team_mention { background: var(--mention-soft); color: var(--mention); }
   .badge.assign { background: var(--assign-soft); color: var(--assign); }
+  .badge.reminder { background: var(--reminder-soft); color: var(--reminder); }
   .badge.stalled, .badge.reminded { background: var(--warn-soft); color: var(--warn); }
   .badge.activity { background: var(--ok-soft); color: var(--ok); }
   .badge.kind { background: none; border: 1px solid currentColor; font-weight: 600; }
@@ -100,12 +103,12 @@
 
 <script>
 const TABS = [
-  ["action", "Action"], ["watch", "Watch"], ["mine", "My work"],
+  ["action", "Action"], ["watch", "Watch"], ["mine", "My work"], ["reminder", "Reminder"],
   ["repos", "Repos"], ["settings", "Settings"],
 ];
 const REASONS = {
   review_requested: "review request", mention: "mention", team_mention: "team mention",
-  assign: "assigned", new_issue: "new issue", new_pr: "new PR", author: "your item",
+  assign: "assigned", reminder: "reminder", new_issue: "new issue", new_pr: "new PR", author: "your item",
   comment: "comment", subscribed: "subscribed", state_change: "state change",
   ci_activity: "CI", manual: "subscribed", security_alert: "security",
 };
@@ -113,15 +116,16 @@ const KINDS = {pr: "PR", issue: "Issue", other: "Other"};
 // Filters per tab: [field, label of the "all" option, label of one value].
 const FILTER_FIELDS = {
   action: ["repo", "kind", "reason"], watch: ["repo", "kind"], mine: ["repo", "kind"],
+  reminder: ["repo", "kind"],
 };
 const FIELD_LABELS = {
   repo: ["All repos", (v) => v], kind: ["All kinds", (v) => KINDS[v] || v],
   reason: ["All types", (v) => REASONS[v] || v],
 };
 let tab = location.hash.slice(1) || "action";
-let filters = {action: {}, watch: {}, mine: {}};
+let filters = {action: {}, watch: {}, mine: {}, reminder: {}};
 let hideStalled = false;
-let oldest = {action: false, watch: false, mine: false};
+let oldest = {action: false, watch: false, mine: false, reminder: false};
 let status = {};
 
 const $ = (sel) => document.querySelector(sel);
@@ -187,7 +191,7 @@ function itemRow(it) {
     badges.push(`<span class="badge assign">${REASONS.assign}</span>`);
   if (it.stalled) badges.push(`<span class="badge stalled">stalled</span>`);
   if (it.activity) badges.push(`<span class="badge activity">new activity</span>`);
-  if (it.tab === "action" && it.notify_count > 1)
+  if (["action", "reminder"].includes(it.tab) && it.notify_count > 1)
     badges.push(`<span class="badge reminded">reminded ${it.notify_count - 1}×</span>`);
   if (it.state && !["open", "draft"].includes(it.state)) badges.push(`<span class="badge">${esc(it.state)}</span>`);
   const when = it.tab === "mine" ? "updated " + ago(it.updated_at) : ago(it.event_at);
@@ -195,9 +199,9 @@ function itemRow(it) {
   // Pop-ups follow the tab that shows the item. Stalled pop-ups need a My work item.
   const ownMine = it.tab === "mine" && it.category === "mine";
   let controls = "";
-  if (it.tab === "action" || ownMine) {
+  if (it.tab === "action" || it.tab === "reminder" || ownMine) {
     const hours = it.remind_hours ?? "";
-    const ph = it.tab === "action" ? status.settings.default_remind_hours : "off";
+    const ph = it.tab === "mine" ? "off" : status.settings.default_remind_hours;
     controls += `<label>remind every</label><input type="number" min="0" step="any"
       data-remind="${key}" data-cat="${cat}" value="${hours}" placeholder="${ph}"><label>h</label>`;
   }
@@ -206,7 +210,7 @@ function itemRow(it) {
       data-stall="${key}" value="${it.stall_days ?? ""}" placeholder="${status.settings.stall_days}"><label>d</label>`;
   }
   controls += `<select data-move="${key}" data-cat="${cat}"><option value="">Move to…</option>
-    ${TABS.slice(0, 3).filter(([id]) => id !== it.tab)
+    ${TABS.slice(0, 4).filter(([id]) => id !== it.tab)
       .map(([id, label]) => `<option value="${id}">${label}</option>`).join("")}</select>`;
   controls += `<button class="btn" data-done="${key}" data-cat="${cat}" data-val="${it.done ? 0 : 1}">
     ${it.done ? "Undo" : "Done"}</button>`;

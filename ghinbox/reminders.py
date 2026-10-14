@@ -10,6 +10,7 @@ MAX_POPUPS = 5
 LABELS = {
     "review_requested": "Review requested",
     "mention": "You were mentioned",
+    "reminder": "Your reminder",
     "team_mention": "Your team was mentioned",
     "assign": "You were assigned",
 }
@@ -22,7 +23,7 @@ def due(conn):
     out = []
     for row in conn.execute(
             f"SELECT *, {db.SHOWN} AS tab FROM items WHERE done = 0 AND "
-            f"({db.SHOWN} = 'action' OR ({db.SHOWN} = 'mine' AND category = 'mine' "
+            f"({db.SHOWN} IN ('action', 'reminder') OR ({db.SHOWN} = 'mine' AND category = 'mine' "
             "AND stalled = 1))"):
         last = db.parse_iso(row["last_notified"])
         if last is None:
@@ -30,7 +31,7 @@ def due(conn):
             continue
         hours = row["remind_hours"]
         if hours is None:
-            hours = default_hours if row["tab"] == "action" else 0
+            hours = default_hours if row["tab"] in ("action", "reminder") else 0
         if hours > 0 and now - last >= timedelta(hours=hours):
             out.append(row)
     return out
@@ -40,6 +41,8 @@ def _message(row):
     ref = f"{row['repo']}#{row['number']}" if row["number"] else row["repo"]
     if row["tab"] == "mine":
         title = "Stalled: no activity on your " + ("PR" if row["kind"] == "pr" else "issue")
+    elif row["tab"] == "reminder":
+        title = LABELS["reminder"]
     else:
         title = LABELS.get(row["reason"], "Needs your action")
     if row["notify_count"] > 0:

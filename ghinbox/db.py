@@ -19,7 +19,7 @@ DEFAULT_SETTINGS = {
     "new_item_days": "7",
 }
 
-TABS = ("action", "watch", "mine")
+TABS = ("action", "watch", "mine", "reminder")
 # The tab that shows an item: the tab you moved it to, or the tab that the sync chose.
 SHOWN = "coalesce(moved_to, category)"
 
@@ -177,7 +177,7 @@ def set_watched(conn, full_name, watched):
         (int(watched), int(watched), now_iso(), full_name))
     if not watched:
         conn.execute(
-            "DELETE FROM items WHERE repo = ? AND category IN ('action', 'watch')", (full_name,))
+            "DELETE FROM items WHERE repo = ? AND category IN ('action', 'watch', 'reminder')", (full_name,))
     conn.commit()
 
 
@@ -237,7 +237,7 @@ def move_item(conn, key, category, target):
         raise KeyError(key)
     conn.execute("UPDATE items SET moved_to = ? WHERE key = ? AND category = ?",
                  (None if target == category else target, key, category))
-    if target == "action" and row["tab"] != "action":
+    if target in ("action", "reminder") and row["tab"] != target:
         # The first pop-up comes after the reminder interval, not now.
         conn.execute(
             "UPDATE items SET last_notified = ?, notify_count = 1 WHERE key = ? AND category = ?",

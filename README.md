@@ -22,16 +22,17 @@ changes anything on GitHub. All data stays on your computer.
 | **Action** | Review requests, @mentions and assignments in the repos that you watch |
 | **Watch** | New issues and PRs, and all other notifications, in the repos that you watch. No action is necessary. |
 | **My work** | Your open issues and PRs in all repos. An item is "stalled" when it has no activity for N days. |
+| **Reminder** | Issues and PRs where you mention yourself, in the repos that you watch. You can also move any item here. |
 | **Repos** | The repos that you watch in this app |
 | **Settings** | Stall time, reminder interval, sync interval and pop-ups |
 
 Each item has a **PR**, **Issue** or **Draft PR** label. You can filter
-Action, Watch and My work by repo, kind and type. In My work, you can also hide
+Action, Watch, My work and Reminder by repo, kind and type. In My work, you can also hide
 the stalled items.
 
 ### Reminders
 
-- A new action item gives a pop-up.
+- A new action item or reminder gives a pop-up.
 - The pop-up comes again after the reminder interval until you act. The default
   interval is 24 hours. You can set an interval for each item. 0 turns the
   reminders off.
@@ -45,6 +46,9 @@ The app finds out when you act:
   item then goes to "done".
 - **Mention:** the item goes to "done" when you reply after the last mention.
   A new mention opens the item again.
+- **Reminder:** you mention yourself, for example "@me look at this on Friday".
+  The item goes to Reminder, not to Action. Your later replies do not mark it
+  done. Click **Done**, or close the item. A newer self-mention opens it again.
 - **Assignment:** the item goes to "done" when the issue closes, or when you are
   no longer assigned.
 

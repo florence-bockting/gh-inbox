@@ -18,11 +18,12 @@ from . import db, state, sync
 REASONS = {
     "review_requested": ("review", "bold cyan"), "mention": ("mention", "bold magenta"),
     "team_mention": ("team mention", "magenta"), "assign": ("assigned", "yellow"),
+    "reminder": ("reminder", "bold #5fd0cc"),
     "new_issue": ("new issue", "green"), "new_pr": ("new PR", "green"),
 }
 REASON_LABELS = {
     "review_requested": "review request", "mention": "mention", "team_mention": "team mention",
-    "assign": "assigned", "new_issue": "new issue", "new_pr": "new PR", "author": "your item",
+    "assign": "assigned", "reminder": "reminder", "new_issue": "new issue", "new_pr": "new PR", "author": "your item",
     "comment": "comment", "subscribed": "subscribed", "state_change": "state change",
     "ci_activity": "CI", "manual": "subscribed", "security_alert": "security",
 }
@@ -30,7 +31,7 @@ KINDS = {"pr": ("PR", "bold #b48cf0"), "issue": ("Issue", "bold green"), "other"
 # Filters per tab, and the label of the "all" option of each filter.
 FILTER_FIELDS = {
     "action": ["repo", "kind", "reason"], "watch": ["repo", "kind"],
-    "mine": ["repo", "kind"],
+    "mine": ["repo", "kind"], "reminder": ["repo", "kind"],
 }
 FIELD_PROMPTS = {"repo": "All repos", "kind": "All kinds", "reason": "All types"}
 FIELD_LABELS = {
@@ -39,7 +40,7 @@ FIELD_LABELS = {
     "reason": lambda v: REASON_LABELS.get(v, v),
 }
 TABS = [("action", "Action"), ("watch", "Watch"), ("mine", "My work"),
-        ("repos", "Repos"), ("settings", "Settings")]
+        ("reminder", "Reminder"), ("repos", "Repos"), ("settings", "Settings")]
 SETTINGS = [
     ("stall_days", "Stalled after (days)"),
     ("default_remind_hours", "Remind every (hours)"),
@@ -152,6 +153,8 @@ class InboxApp(App):
         self.query_one("#t-action", DataTable).add_columns(
             "Kind", "", "Repo", "Title", "By", "Age", "Remind")
         self.query_one("#t-watch", DataTable).add_columns("Kind", "", "Repo", "Title", "By", "Age")
+        self.query_one("#t-reminder", DataTable).add_columns(
+            "Kind", "", "Repo", "Title", "By", "Age", "Remind")
         self.query_one("#t-mine", DataTable).add_columns(
             "Kind", "", "Repo", "Title", "Updated", "Stall after", "Remind")
         self.query_one("#t-repos", DataTable).add_columns("Watch", "Repo", "Source")
@@ -207,13 +210,18 @@ class InboxApp(App):
         self.query_one("#status", Static).update(" · ".join(parts))
 
         tabs = self.query_one(TabbedContent)
-        for tab_id, label in [("action", "Action"), ("watch", "Watch"), ("mine", "My work")]:
+        for tab_id, label in TABS[:4]:
             n = st["counts"].get(tab_id, 0)
             number = [t for t, _ in TABS].index(tab_id) + 1
             tabs.get_tab(tab_id).label = f"{number} {label}" + (f" ({n})" if n else "")
 
         settings = st["settings"]
         self._fill("action", self._items("action"), lambda it: (
+            self._kind(it), self._badge(it), it["repo"] + (f"#{it['number']}" if it["number"] else ""),
+            self._title(it), it["author"] or "", ago(it["event_at"]),
+            f"{it['remind_hours']:g}h" if it["remind_hours"] is not None
+            else f"{float(settings['default_remind_hours']):g}h"))
+        self._fill("reminder", self._items("reminder"), lambda it: (
             self._kind(it), self._badge(it), it["repo"] + (f"#{it['number']}" if it["number"] else ""),
             self._title(it), it["author"] or "", ago(it["event_at"]),
             f"{it['remind_hours']:g}h" if it["remind_hours"] is not None
@@ -362,7 +370,7 @@ class InboxApp(App):
         it = self.current()
         if not it or "category" not in it:
             return
-        names = ", ".join(t for t, _ in TABS[:3] if t != it["tab"])
+        names = ", ".join(t for t, _ in TABS[:4] if t != it["tab"])
         self.ask(f"Move to tab ({names}):", "",
                  lambda v: v and self.do("items/move", {"key": it["key"],
                                                         "category": it["category"],
@@ -379,7 +387,7 @@ class InboxApp(App):
     def action_remind(self):
         it = self.current()
         # Pop-ups follow the tab that shows the item. Stalled pop-ups need a My work item.
-        if not it or not (it.get("tab") == "action" or self._own_mine(it)):
+        if not it or not (it.get("tab") in ("action", "reminder") or self._own_mine(it)):
             return
         value = "" if it["remind_hours"] is None else f"{it['remind_hours']:g}"
         self.ask("Remind me every N hours (0 = off, empty = default):", value,

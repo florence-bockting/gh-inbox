@@ -1,8 +1,9 @@
-"""Fetch GitHub state with `gh` and sort it into the three tabs.
+"""Fetch GitHub state with `gh` and sort it into the four tabs.
 
-action: review requests, @mentions and assignments in watched repos.
-watch:  other notifications and new issues/PRs in watched repos.
-mine:   open issues and PRs you authored, in any repo.
+action:   review requests, @mentions and assignments in watched repos.
+watch:    other notifications and new issues/PRs in watched repos.
+mine:     open issues and PRs you authored, in any repo.
+reminder: issues and PRs where you mentioned yourself, in watched repos.
 """
 
 import json
@@ -48,7 +49,7 @@ def upsert(conn, item, reopen=True, bump=True):
     now = db.now_iso()
     if row is None:
         remind = None
-        if item["category"] == "action":
+        if item["category"] in ("action", "reminder"):
             remind = db.get_setting(conn, "default_remind_hours", float)
         conn.execute(
             "INSERT INTO items (key, category, repo, number, kind, title, url, author, state, "
@@ -283,11 +284,21 @@ def check_action_items(conn, login, touched):
             continue
 
         comments = _comments(row["repo"], row["number"], row["kind"])
-        my_reply = max((t for t, who, _ in comments if who == login), default=None)
+        # Your own @login in your comment is a reminder, not a reply.
+        my_reply = max((t for t, who, body in comments
+                        if who == login and tag not in body.lower()), default=None)
         if row["reason"] == "mention":
             mentions = [t for t, who, body in comments if who != login and tag in body.lower()]
+            reminders = [t for t, who, body in comments if who == login and tag in body.lower()]
             if tag in (issue.get("body") or "").lower():
-                mentions.append(issue["created_at"])
+                own = issue["user"]["login"] == login
+                (reminders if own else mentions).append(issue["created_at"])
+            if reminders:
+                _remind(conn, row, issue, max(reminders))
+                # Only you mentioned yourself: the item shows in the Reminder tab only.
+                if not mentions and not row["assigned"]:
+                    _auto_done(conn, row["key"], "action")
+                    continue
             mention_at = max(mentions, default=row["event_at"])
         else:
             mention_at = row["event_at"]
@@ -306,6 +317,31 @@ def check_action_items(conn, login, touched):
             conn.execute(
                 "UPDATE items SET event_at = ?, last_notified = NULL "
                 "WHERE key = ? AND category = 'action'", (mention_at, row["key"]))
+
+
+def _remind(conn, row, issue, at):
+    """Add or update the reminder for a self-mention. A newer self-mention opens it again."""
+    upsert(conn, {
+        "key": row["key"], "category": "reminder", "repo": row["repo"],
+        "number": row["number"], "kind": row["kind"], "title": issue["title"],
+        "url": row["url"], "author": issue["user"]["login"], "state": issue["state"],
+        "reason": "reminder", "updated_at": issue["updated_at"], "event_at": at,
+    })
+
+
+def check_reminders(conn):
+    """Mark a reminder done when its issue or PR closes. One request for each open reminder."""
+    for row in conn.execute(
+            "SELECT key, repo, number FROM items WHERE category = 'reminder' AND done = 0"
+            ).fetchall():
+        _, issue = db.cached_get(conn, f"repos/{row['repo']}/issues/{row['number']}",
+                                 keep_body=True)
+        conn.execute(
+            "UPDATE items SET title = ?, state = ?, updated_at = ? "
+            "WHERE key = ? AND category = 'reminder'",
+            (issue["title"], issue["state"], issue["updated_at"], row["key"]))
+        if issue["state"] == "closed":
+            _auto_done(conn, row["key"], "reminder", "closed")
 
 
 # ---- new issues and PRs in watched repos ------------------------------------
@@ -435,8 +471,9 @@ def estimate_per_hour(conn):
     """Most requests each hour, if no ETag answer is 304."""
     minutes = db.get_setting(conn, "poll_minutes", float)
     open_checks = conn.execute(
-        "SELECT count(*) FROM items WHERE category = 'action' AND done = 0 "
-        "AND reason IN ('mention', 'team_mention', 'assign')").fetchone()[0]
+        "SELECT count(*) FROM items WHERE done = 0 AND (category = 'reminder' OR "
+        "(category = 'action' AND reason IN ('mention', 'team_mention', 'assign')))"
+        ).fetchone()[0]
     per_sync = 6 + len(db.watched_repos(conn)) + open_checks
     return round(per_sync * 60 / max(minutes, 1))
 
@@ -465,6 +502,7 @@ def sync(conn):
             sync_review_requests(conn, watched)
             sync_mentions(conn, watched, touched)
             check_action_items(conn, login, touched)
+            check_reminders(conn)
             sync_new_items(conn, login)
             sync_mine(conn, unread)
             conn.commit()
