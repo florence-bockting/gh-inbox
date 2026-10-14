@@ -15,11 +15,12 @@ DEFAULT_SETTINGS = {
     "poll_minutes": "5",
     "default_remind_hours": "24",
     "stall_days": "7",
+    "review_wait_days": "3",
     "notify": "1",
     "new_item_days": "7",
 }
 
-TABS = ("action", "watch", "mine", "reminder")
+TABS = ("action", "watch", "mine", "todo")
 # The tab that shows an item: the tab you moved it to, or the tab that the sync chose.
 SHOWN = "coalesce(moved_to, category)"
 
@@ -56,6 +57,10 @@ CREATE TABLE IF NOT EXISTS items (
     assigned      INTEGER NOT NULL DEFAULT 0,   -- you are an assignee (Action only)
     moved_to      TEXT,               -- the tab you moved the item to
     priority      INTEGER NOT NULL DEFAULT 0,   -- 1 = high: first in the list
+    review_waits  TEXT,               -- JSON {reviewer: start} of your PR (My work only)
+    review_checked TEXT,              -- updated_at when the app last read the timeline
+    waiting_for   TEXT,               -- overdue reviewers, for example "x, org/team"
+    waiting_since TEXT,               -- the oldest start of the overdue reviewers
     PRIMARY KEY (key, category)
 );
 CREATE TABLE IF NOT EXISTS settings (
@@ -92,9 +97,14 @@ def connect():
     # A database from an older version does not have all the columns.
     have = {r["name"] for r in conn.execute("PRAGMA table_info(items)")}
     for column, decl in [("assigned", "INTEGER NOT NULL DEFAULT 0"), ("moved_to", "TEXT"),
-                         ("priority", "INTEGER NOT NULL DEFAULT 0")]:
+                         ("priority", "INTEGER NOT NULL DEFAULT 0"), ("review_waits", "TEXT"),
+                         ("review_checked", "TEXT"), ("waiting_for", "TEXT"),
+                         ("waiting_since", "TEXT")]:
         if column not in have:
             conn.execute(f"ALTER TABLE items ADD COLUMN {column} {decl}")
+    # The ToDo tab had the name "reminder" before.
+    conn.execute("UPDATE items SET category = 'todo', reason = 'todo' WHERE category = 'reminder'")
+    conn.execute("UPDATE items SET moved_to = 'todo' WHERE moved_to = 'reminder'")
     conn.executemany(
         "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
         DEFAULT_SETTINGS.items(),
@@ -177,7 +187,7 @@ def set_watched(conn, full_name, watched):
         (int(watched), int(watched), now_iso(), full_name))
     if not watched:
         conn.execute(
-            "DELETE FROM items WHERE repo = ? AND category IN ('action', 'watch', 'reminder')", (full_name,))
+            "DELETE FROM items WHERE repo = ? AND category IN ('action', 'watch', 'todo')", (full_name,))
     conn.commit()
 
 
@@ -196,8 +206,9 @@ def list_items(conn, category, show_done=False, oldest_first=False):
         sql += (" AND NOT EXISTS (SELECT 1 FROM items a WHERE a.key = items.key"
                 " AND coalesce(a.moved_to, a.category) = 'action' AND a.done = 0)")
     when = "updated_at" if category == "mine" else "coalesce(event_at, updated_at)"
-    # High priority first, in both orders.
-    sql += f" ORDER BY priority DESC, {when} {'ASC' if oldest_first else 'DESC'}"
+    # High priority first, then overdue reviews, in both orders.
+    sql += (f" ORDER BY priority DESC, waiting_for IS NOT NULL DESC, "
+            f"{when} {'ASC' if oldest_first else 'DESC'}")
     return [dict(r) for r in conn.execute(sql, (category,))]
 
 
@@ -237,7 +248,7 @@ def move_item(conn, key, category, target):
         raise KeyError(key)
     conn.execute("UPDATE items SET moved_to = ? WHERE key = ? AND category = ?",
                  (None if target == category else target, key, category))
-    if target in ("action", "reminder") and row["tab"] != target:
+    if target in ("action", "todo") and row["tab"] != target:
         # The first pop-up comes after the reminder interval, not now.
         conn.execute(
             "UPDATE items SET last_notified = ?, notify_count = 1 WHERE key = ? AND category = ?",

@@ -1,4 +1,4 @@
-# Scenarios
+# Scenario
 
 This file lists the scenarios that the app must support. A checked box means
 that the app supports the scenario now.
@@ -8,8 +8,8 @@ that the app supports the scenario now.
 | [x] | 1. I open an issue or a pull request. | Mine |
 | [x] | 2. Someone mentions me, assigns an item to me, or requests my review. | Action |
 | [x] | 3. I watch the new issues and pull requests in specific repos. | Watch |
-| [x] | 4. I mention myself in an item as a reminder. | Reminder |
-| [ ] | 5. I wait for a review that I requested on my pull request. | To decide |
+| [x] | 4. I mention myself in an item as a to-do. | ToDo |
+| [x] | 5. I wait for a review that I requested on my pull request. | My work |
 | [ ] | 6. I attach a note to an item. | All tabs |
 
 ## 1. My issues and pull requests
@@ -29,13 +29,16 @@ One of these events puts an item in Action:
 I watch specific repos. The app shows the new issues and pull requests in
 these repos.
 
-## 4. Mention myself as a reminder
+## 4. Mention myself as a to-do
 
 I write `@me` in a comment on an issue or a pull request. The item goes to the
-Reminder tab.
+ToDo tab. Example: in a PR, I see that a follow-up PR is necessary. I write a
+bullet point with `@me`. I do not open the follow-up PR now.
 
-**Decision:** a new tab, Reminder, after My work. Detection B. Done rules A
-and B. The pop-ups repeat after the reminder interval, as in Action.
+**Decision:** a new tab, ToDo, after My work. ToDo is for my own tasks. Action
+is for the items where other people expect something from me. Detection B.
+Done rules A and B. The pop-ups repeat after the reminder interval, as in
+Action.
 
 **Before the change:** the app ignored the mention.
 
@@ -64,8 +67,8 @@ and B. The pop-ups repeat after the reminder interval, as in Action.
 - **C. A later comment from me marks it done.** Not good: the reminder comment
   and a normal reply look the same.
 
-**Display:** give a self-mention its own reason, `reminder`. Show the tag
-"reminder" in a third color, next to the mention tag and the assigned tag. A mention from
+**Display:** give a self-mention its own reason, `todo`. Show the tag
+"todo" in a third color, next to the mention tag and the assigned tag. A mention from
 another person has a higher priority.
 
 **Open questions:**
@@ -78,15 +81,29 @@ another person has a higher priority.
 
 **Recommended:** detection B. Use done rules A and B together.
 
-**Implemented:** `_remind` and `check_reminders` in `ghinbox/sync.py`.
+**Implemented:** `_add_todo` and `check_todos` in `ghinbox/sync.py`.
 
 ## 5. Wait for a requested review
 
 I request a review on my pull request. The reviewer does nothing for N days.
 The app tells me. I can then tag the reviewer again.
 
-**Now:** the app does not show this. The stall flag in Mine is near
-(`refresh_stalled`, `ghinbox/sync.py:373`). It looks at all activity on the
+**Decision:** option A. The pull request is already in My work. A waiting
+review is not a task that I set myself, so it does not go to the self-mention
+tab.
+
+**Implemented:** `refresh_waiting` in `ghinbox/sync.py`.
+
+- One timer for each reviewer. A team counts as one reviewer, `@org/team`.
+- The timer starts at the last review request, or at my last comment that tags
+  the reviewer.
+- The setting "Review wait (days)" sets N. The default is 3.
+- The PR shows the tag "in review" while a review is pending. After N days,
+  the tag changes to "review overdue", and the item is highlighted. A pop-up
+  comes, and repeats after the reminder interval.
+- The app only opens the PR. It does not post a comment.
+
+**Before the change:** the stall flag in My work looked at all activity on the
 item, not at the reviewer.
 
 **Data:** `pulls/{n}/requested_reviewers` lists the pending reviewers. The
@@ -104,11 +121,6 @@ leaves the list after a review.
   goes to Action with the reason `review_overdue`. To tag the reviewer again
   is an action that I must do. A new review request or a review removes it.
 
-**Open questions:**
-
-- One timer for each reviewer, or one for each pull request?
-- Do team review requests count?
-- Does the app post the reminder comment, or only open the pull request?
 
 ## 6. Attach a note to an item
 

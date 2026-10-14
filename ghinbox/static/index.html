@@ -10,7 +10,7 @@
     --accent: #2f6fdb; --accent-soft: #e6eefc; --warn: #b5541c; --warn-soft: #fbeee5;
     --ok: #237a4b; --ok-soft: #e4f4ea; --chip: #eef0f3; --pr: #7b45c4;
     --mention: #a3367a; --mention-soft: #f9e6f1; --assign: #8a6100; --assign-soft: #fbf1d6;
-    --reminder: #0f7b7b; --reminder-soft: #e0f3f2;
+    --todo: #0f7b7b; --todo-soft: #e0f3f2; --review: #4f46b8; --review-soft: #ecebfb;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -18,7 +18,7 @@
       --accent: #6d9cf0; --accent-soft: #1f2c44; --warn: #f0a070; --warn-soft: #3a2619;
       --ok: #6fcf97; --ok-soft: #1a3326; --chip: #262b33; --pr: #b48cf0;
       --mention: #f08cc8; --mention-soft: #3a1f30; --assign: #e8c060; --assign-soft: #33290f;
-      --reminder: #5fd0cc; --reminder-soft: #163332;
+      --todo: #5fd0cc; --todo-soft: #163332; --review: #a59cf5; --review-soft: #26233f;
     }
   }
   * { box-sizing: border-box; }
@@ -52,6 +52,8 @@
   .row:first-child { border-top: 0; }
   .row.done { opacity: .55; }
   .row.high { box-shadow: inset 3px 0 0 var(--warn); }
+  .row.overdue { background: var(--warn-soft); }
+  .badge.in_review { background: var(--review-soft); color: var(--review); }
   .star { border: 0; background: none; cursor: pointer; font-size: 16px; color: var(--muted);
           padding: 0 6px 0 0; vertical-align: -1px; }
   .row.high .star { color: var(--warn); }
@@ -63,8 +65,8 @@
   .badge.review_requested { background: var(--accent-soft); color: var(--accent); }
   .badge.mention, .badge.team_mention { background: var(--mention-soft); color: var(--mention); }
   .badge.assign { background: var(--assign-soft); color: var(--assign); }
-  .badge.reminder { background: var(--reminder-soft); color: var(--reminder); }
-  .badge.stalled, .badge.reminded { background: var(--warn-soft); color: var(--warn); }
+  .badge.todo { background: var(--todo-soft); color: var(--todo); }
+  .badge.stalled, .badge.reminded, .badge.overdue { background: var(--warn-soft); color: var(--warn); }
   .badge.activity { background: var(--ok-soft); color: var(--ok); }
   .badge.kind { background: none; border: 1px solid currentColor; font-weight: 600; }
   .badge.kind-pr { color: var(--pr); }
@@ -103,12 +105,12 @@
 
 <script>
 const TABS = [
-  ["action", "Action"], ["watch", "Watch"], ["mine", "My work"], ["reminder", "Reminder"],
+  ["action", "Action"], ["watch", "Watch"], ["mine", "My work"], ["todo", "ToDo"],
   ["repos", "Repos"], ["settings", "Settings"],
 ];
 const REASONS = {
   review_requested: "review request", mention: "mention", team_mention: "team mention",
-  assign: "assigned", reminder: "reminder", new_issue: "new issue", new_pr: "new PR", author: "your item",
+  assign: "assigned", todo: "todo", new_issue: "new issue", new_pr: "new PR", author: "your item",
   comment: "comment", subscribed: "subscribed", state_change: "state change",
   ci_activity: "CI", manual: "subscribed", security_alert: "security",
 };
@@ -116,16 +118,17 @@ const KINDS = {pr: "PR", issue: "Issue", other: "Other"};
 // Filters per tab: [field, label of the "all" option, label of one value].
 const FILTER_FIELDS = {
   action: ["repo", "kind", "reason"], watch: ["repo", "kind"], mine: ["repo", "kind"],
-  reminder: ["repo", "kind"],
+  todo: ["repo", "kind"],
 };
 const FIELD_LABELS = {
   repo: ["All repos", (v) => v], kind: ["All kinds", (v) => KINDS[v] || v],
   reason: ["All types", (v) => REASONS[v] || v],
 };
 let tab = location.hash.slice(1) || "action";
-let filters = {action: {}, watch: {}, mine: {}, reminder: {}};
+let filters = {action: {}, watch: {}, mine: {}, todo: {}};
 let hideStalled = false;
-let oldest = {action: false, watch: false, mine: false, reminder: false};
+let onlyWaiting = false;
+let oldest = {action: false, watch: false, mine: false, todo: false};
 let status = {};
 
 const $ = (sel) => document.querySelector(sel);
@@ -190,8 +193,17 @@ function itemRow(it) {
   if (it.assigned && it.reason !== "assign")
     badges.push(`<span class="badge assign">${REASONS.assign}</span>`);
   if (it.stalled) badges.push(`<span class="badge stalled">stalled</span>`);
+  if (it.review_waits) {
+    // The tooltip names the reviewers and their wait time.
+    const waits = JSON.parse(it.review_waits);
+    const tip = Object.entries(waits).map(([n, t]) =>
+      `@${n}: ${Math.floor((Date.now() - Date.parse(t)) / 86400000)}d`).join(", ");
+    badges.push(it.waiting_for
+      ? `<span class="badge overdue" title="${esc(tip)}">review overdue</span>`
+      : `<span class="badge in_review" title="${esc(tip)}">in review</span>`);
+  }
   if (it.activity) badges.push(`<span class="badge activity">new activity</span>`);
-  if (["action", "reminder"].includes(it.tab) && it.notify_count > 1)
+  if (["action", "todo"].includes(it.tab) && it.notify_count > 1)
     badges.push(`<span class="badge reminded">reminded ${it.notify_count - 1}×</span>`);
   if (it.state && !["open", "draft"].includes(it.state)) badges.push(`<span class="badge">${esc(it.state)}</span>`);
   const when = it.tab === "mine" ? "updated " + ago(it.updated_at) : ago(it.event_at);
@@ -199,7 +211,7 @@ function itemRow(it) {
   // Pop-ups follow the tab that shows the item. Stalled pop-ups need a My work item.
   const ownMine = it.tab === "mine" && it.category === "mine";
   let controls = "";
-  if (it.tab === "action" || it.tab === "reminder" || ownMine) {
+  if (it.tab === "action" || it.tab === "todo" || ownMine) {
     const hours = it.remind_hours ?? "";
     const ph = it.tab === "mine" ? "off" : status.settings.default_remind_hours;
     controls += `<label>remind every</label><input type="number" min="0" step="any"
@@ -216,7 +228,7 @@ function itemRow(it) {
     ${it.done ? "Undo" : "Done"}</button>`;
   const star = `<button class="star" data-prio="${key}" data-cat="${cat}" data-val="${it.priority ? 0 : 1}"
     title="${it.priority ? "Remove high priority" : "Mark as high priority"}">${it.priority ? "★" : "☆"}</button>`;
-  return `<div class="row ${it.done ? "done" : ""} ${it.priority ? "high" : ""}">
+  return `<div class="row ${it.done ? "done" : ""} ${it.priority ? "high" : ""} ${it.waiting_for ? "overdue" : ""}">
     <div><div class="title">${star}${badges.join("")}<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title)}</a></div>
     <div class="meta">${esc(ref)} · ${it.author ? "by " + esc(it.author) + " · " : ""}${when}</div></div>
     <div class="controls">${controls}</div></div>`;
@@ -238,13 +250,15 @@ async function renderItems() {
       `</select>`;
   }).join("");
   if (tab === "mine")
-    toolbar += `<label><input type="checkbox" id="hideStalled" ${hideStalled ? "checked" : ""}> Hide stalled</label>`;
-  if (fields.some((f) => chosen[f]) || (tab === "mine" && hideStalled))
+    toolbar += `<label><input type="checkbox" id="hideStalled" ${hideStalled ? "checked" : ""}> Hide stalled</label>` +
+      `<label><input type="checkbox" id="onlyWaiting" ${onlyWaiting ? "checked" : ""}> Review overdue</label>`;
+  if (fields.some((f) => chosen[f]) || (tab === "mine" && (hideStalled || onlyWaiting)))
     toolbar += `<button class="btn" id="clearFilters">Clear filters</button>`;
   toolbar += `<button class="btn" id="order" title="Reverse the order">${oldest[tab] ? "↑ Oldest first" : "↓ Newest first"}</button>`;
   if (tab === "watch") toolbar += `<span class="grow"></span><button class="btn" id="allDone">Mark all done</button>`;
   items = items.filter((i) => fields.every((f) => !chosen[f] || i[f] === chosen[f])
-    && !(tab === "mine" && hideStalled && i.stalled));
+    && !(tab === "mine" && hideStalled && i.stalled)
+    && !(tab === "mine" && onlyWaiting && !i.waiting_for));
   const hint = !status.watched && tab !== "mine"
     ? `<div class="empty">You watch no repos yet. Open the <b>Repos</b> tab and select some.</div>` : "";
   $("#main").innerHTML = `<div class="toolbar">${toolbar}</div>` + (hint ||
@@ -273,6 +287,7 @@ function renderSettings() {
     <span class="help">${help}</span>`;
   $("#main").innerHTML = `<div class="settings">
     ${field("stall_days", "Stalled after (days)", "Your issue or PR counts as stalled after this many days without activity. Each item can override it. 0 turns it off.")}
+    ${field("review_wait_days", "Review wait (days)", "Your PR shows \"in review\" while a review is pending, and \"review overdue\" after this many days. A new request, or your comment that tags @x, starts the time again. 0 turns it off.")}
     ${field("default_remind_hours", "Remind every (hours)", "Default reminder interval for new action items. Each item can override it. 0 turns reminders off.")}
     ${field("poll_minutes", "Sync every (minutes)", "How often the poller asks GitHub for changes.")}
     ${field("new_item_days", "Watch history (days)", "When you start to watch a repo, show its issues and PRs from this many days back.")}
@@ -301,7 +316,7 @@ document.addEventListener("click", async (e) => {
   if (t.id === "order") { oldest[tab] = !oldest[tab]; return render(); }
   if (t.id === "clearFilters") {
     filters[tab] = {};
-    if (tab === "mine") hideStalled = false;
+    if (tab === "mine") hideStalled = onlyWaiting = false;
     return render();
   }
   if (t.dataset.prio) {
@@ -345,6 +360,7 @@ document.addEventListener("change", async (e) => {
     else if (t.id === "showDone") return render();
     else if (t.dataset.ffield) { filters[tab][t.dataset.ffield] = t.value; return render(); }
     else if (t.id === "hideStalled") { hideStalled = t.checked; return render(); }
+    else if (t.id === "onlyWaiting") { onlyWaiting = t.checked; return render(); }
     else return;
     status = await get("/api/status"); renderTabs();
     if (t.dataset.stall || t.dataset.move) render();

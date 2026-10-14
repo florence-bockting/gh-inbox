@@ -21,23 +21,26 @@ changes anything on GitHub. All data stays on your computer.
 | :-- | :-- |
 | **Action** | Review requests, @mentions and assignments in the repos that you watch |
 | **Watch** | New issues and PRs, and all other notifications, in the repos that you watch. No action is necessary. |
-| **My work** | Your open issues and PRs in all repos. An item is "stalled" when it has no activity for N days. |
-| **Reminder** | Issues and PRs where you mention yourself, in the repos that you watch. You can also move any item here. |
+| **My work** | Your open issues and PRs in all repos. An item is "stalled" when it has no activity for N days. A PR shows "in review" while a review is pending, and "review overdue" after N days. |
+| **ToDo** | Your own tasks: issues and PRs where you mention yourself, in the repos that you watch. You can also move any item here. |
 | **Repos** | The repos that you watch in this app |
 | **Settings** | Stall time, reminder interval, sync interval and pop-ups |
 
 Each item has a **PR**, **Issue** or **Draft PR** label. You can filter
-Action, Watch, My work and Reminder by repo, kind and type. In My work, you can also hide
-the stalled items.
+Action, Watch, My work and ToDo by repo, kind and type. In My work, you can also hide
+the stalled items, or show only the PRs with an overdue review.
 
 ### Reminders
 
-- A new action item or reminder gives a pop-up.
+- A new action item or to-do gives a pop-up.
 - The pop-up comes again after the reminder interval until you act. The default
   interval is 24 hours. You can set an interval for each item. 0 turns the
   reminders off.
 - A stalled item gives one pop-up. Set a reminder interval on the item to get
   more.
+- A PR with an overdue review gives a pop-up. The pop-up comes again after the
+  reminder interval. To start the wait time again, request the review again, or
+  tag @x in a comment.
 - More than 5 pop-ups at the same time become one summary pop-up.
 
 The app finds out when you act:
@@ -46,8 +49,8 @@ The app finds out when you act:
   item then goes to "done".
 - **Mention:** the item goes to "done" when you reply after the last mention.
   A new mention opens the item again.
-- **Reminder:** you mention yourself, for example "@me look at this on Friday".
-  The item goes to Reminder, not to Action. Your later replies do not mark it
+- **To-do:** you mention yourself, for example "@me open a follow-up PR".
+  The item goes to ToDo, not to Action. Your later replies do not mark it
   done. Click **Done**, or close the item. A newer self-mention opens it again.
 - **Assignment:** the item goes to "done" when the issue closes, or when you are
   no longer assigned.
@@ -117,13 +120,14 @@ Keys in the terminal UI:
 
 | Key | Action |
 | :-- | :-- |
-| `1`–`5` | Go to a tab |
+| `1`–`6` | Go to a tab |
 | `o` or `Enter` | Open the item in the browser |
 | `d` | Done, or undo |
 | `r` | Set the reminder interval of the item |
 | `s` | Set the stall time of the item (My work) |
 | `f` / `x` | Go to the filters / clear the filters |
 | `t` | Hide stalled items (My work) |
+| `w` | Show only the PRs with an overdue review (My work) |
 | `h` | Show done items |
 | `v` | Reverse the order: newest first or oldest first |
 | `A` | Mark all Watch items done |

@@ -1,4 +1,4 @@
-"""Desktop pop-ups for new action items, reminders, and stalled work."""
+"""Desktop pop-ups for new action items, to-dos, reminders, and stalled work."""
 
 from datetime import datetime, timedelta, timezone
 
@@ -10,7 +10,7 @@ MAX_POPUPS = 5
 LABELS = {
     "review_requested": "Review requested",
     "mention": "You were mentioned",
-    "reminder": "Your reminder",
+    "todo": "Your to-do",
     "team_mention": "Your team was mentioned",
     "assign": "You were assigned",
 }
@@ -23,15 +23,16 @@ def due(conn):
     out = []
     for row in conn.execute(
             f"SELECT *, {db.SHOWN} AS tab FROM items WHERE done = 0 AND "
-            f"({db.SHOWN} IN ('action', 'reminder') OR ({db.SHOWN} = 'mine' AND category = 'mine' "
-            "AND stalled = 1))"):
+            f"({db.SHOWN} IN ('action', 'todo') OR ({db.SHOWN} = 'mine' AND category = 'mine' "
+            "AND (stalled = 1 OR waiting_for IS NOT NULL)))"):
         last = db.parse_iso(row["last_notified"])
         if last is None:
             out.append(row)
             continue
         hours = row["remind_hours"]
         if hours is None:
-            hours = default_hours if row["tab"] in ("action", "reminder") else 0
+            # A waiting review repeats like an action item. A stalled item does not.
+            hours = default_hours if row["tab"] in ("action", "todo") or row["waiting_for"] else 0
         if hours > 0 and now - last >= timedelta(hours=hours):
             out.append(row)
     return out
@@ -39,10 +40,12 @@ def due(conn):
 
 def _message(row):
     ref = f"{row['repo']}#{row['number']}" if row["number"] else row["repo"]
-    if row["tab"] == "mine":
+    if row["tab"] == "mine" and row["waiting_for"]:
+        title = "Review overdue: @" + row["waiting_for"].replace(", ", ", @")
+    elif row["tab"] == "mine":
         title = "Stalled: no activity on your " + ("PR" if row["kind"] == "pr" else "issue")
-    elif row["tab"] == "reminder":
-        title = LABELS["reminder"]
+    elif row["tab"] == "todo":
+        title = LABELS["todo"]
     else:
         title = LABELS.get(row["reason"], "Needs your action")
     if row["notify_count"] > 0:

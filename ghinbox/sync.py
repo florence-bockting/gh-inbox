@@ -3,10 +3,11 @@
 action:   review requests, @mentions and assignments in watched repos.
 watch:    other notifications and new issues/PRs in watched repos.
 mine:     open issues and PRs you authored, in any repo.
-reminder: issues and PRs where you mentioned yourself, in watched repos.
+todo:     issues and PRs where you mentioned yourself, in watched repos.
 """
 
 import json
+import re
 import time
 from datetime import datetime, timedelta, timezone
 
@@ -49,7 +50,7 @@ def upsert(conn, item, reopen=True, bump=True):
     now = db.now_iso()
     if row is None:
         remind = None
-        if item["category"] in ("action", "reminder"):
+        if item["category"] in ("action", "todo"):
             remind = db.get_setting(conn, "default_remind_hours", float)
         conn.execute(
             "INSERT INTO items (key, category, repo, number, kind, title, url, author, state, "
@@ -284,18 +285,18 @@ def check_action_items(conn, login, touched):
             continue
 
         comments = _comments(row["repo"], row["number"], row["kind"])
-        # Your own @login in your comment is a reminder, not a reply.
+        # Your own @login in your comment is a to-do, not a reply.
         my_reply = max((t for t, who, body in comments
                         if who == login and tag not in body.lower()), default=None)
         if row["reason"] == "mention":
             mentions = [t for t, who, body in comments if who != login and tag in body.lower()]
-            reminders = [t for t, who, body in comments if who == login and tag in body.lower()]
+            todos = [t for t, who, body in comments if who == login and tag in body.lower()]
             if tag in (issue.get("body") or "").lower():
                 own = issue["user"]["login"] == login
-                (reminders if own else mentions).append(issue["created_at"])
-            if reminders:
-                _remind(conn, row, issue, max(reminders))
-                # Only you mentioned yourself: the item shows in the Reminder tab only.
+                (todos if own else mentions).append(issue["created_at"])
+            if todos:
+                _add_todo(conn, row, issue, max(todos))
+                # Only you mentioned yourself: the item shows in the ToDo tab only.
                 if not mentions and not row["assigned"]:
                     _auto_done(conn, row["key"], "action")
                     continue
@@ -319,29 +320,29 @@ def check_action_items(conn, login, touched):
                 "WHERE key = ? AND category = 'action'", (mention_at, row["key"]))
 
 
-def _remind(conn, row, issue, at):
-    """Add or update the reminder for a self-mention. A newer self-mention opens it again."""
+def _add_todo(conn, row, issue, at):
+    """Add or update the to-do for a self-mention. A newer self-mention opens it again."""
     upsert(conn, {
-        "key": row["key"], "category": "reminder", "repo": row["repo"],
+        "key": row["key"], "category": "todo", "repo": row["repo"],
         "number": row["number"], "kind": row["kind"], "title": issue["title"],
         "url": row["url"], "author": issue["user"]["login"], "state": issue["state"],
-        "reason": "reminder", "updated_at": issue["updated_at"], "event_at": at,
+        "reason": "todo", "updated_at": issue["updated_at"], "event_at": at,
     })
 
 
-def check_reminders(conn):
-    """Mark a reminder done when its issue or PR closes. One request for each open reminder."""
+def check_todos(conn):
+    """Mark a to-do done when its issue or PR closes. One request for each open to-do."""
     for row in conn.execute(
-            "SELECT key, repo, number FROM items WHERE category = 'reminder' AND done = 0"
+            "SELECT key, repo, number FROM items WHERE category = 'todo' AND done = 0"
             ).fetchall():
         _, issue = db.cached_get(conn, f"repos/{row['repo']}/issues/{row['number']}",
                                  keep_body=True)
         conn.execute(
             "UPDATE items SET title = ?, state = ?, updated_at = ? "
-            "WHERE key = ? AND category = 'reminder'",
+            "WHERE key = ? AND category = 'todo'",
             (issue["title"], issue["state"], issue["updated_at"], row["key"]))
         if issue["state"] == "closed":
-            _auto_done(conn, row["key"], "reminder", "closed")
+            _auto_done(conn, row["key"], "todo", "closed")
 
 
 # ---- new issues and PRs in watched repos ------------------------------------
@@ -404,6 +405,72 @@ def sync_mine(conn, unread):
             "SELECT key FROM items WHERE category = 'mine' AND done = 0").fetchall():
         if row["key"] not in found:
             _auto_done(conn, row["key"], "mine", "closed")
+
+
+# ---- reviews you wait for ---------------------------------------------------
+
+def _tags(name, body):
+    """True if `body` tags @name. "@ab" does not tag "@abc" or "@ab-c"."""
+    return re.search(rf"(?<![\w-])@{re.escape(name)}(?![\w-])", body, re.IGNORECASE) is not None
+
+
+def _review_starts(repo, number, pending, login):
+    """Return {reviewer: start}. The timer of a reviewer starts at the last review
+    request, or at your last comment that tags the reviewer."""
+    owner = repo.split("/")[0]
+    starts = {}
+    for ev in gh.api_items(f"repos/{repo}/issues/{number}/timeline?per_page=100"):
+        if ev.get("event") == "review_requested":
+            user = (ev.get("requested_reviewer") or {}).get("login")
+            team = (ev.get("requested_team") or {}).get("slug")
+            name = user or (f"{owner}/{team}" if team else None)
+            if name in pending:
+                starts[name] = ev["created_at"]
+        elif ev.get("event") == "commented" and (ev.get("actor") or {}).get("login") == login:
+            for name in pending:
+                if _tags(name, ev.get("body") or ""):
+                    starts[name] = ev["created_at"]
+    return starts
+
+
+def refresh_waiting(conn, login):
+    """Flag your PRs where a requested review waits longer than review_wait_days.
+
+    One request for each open PR. The timeline loads only when the PR changed.
+    """
+    days = db.get_setting(conn, "review_wait_days", float)
+    now = _utcnow()
+    for row in conn.execute(
+            "SELECT key, repo, number, updated_at, review_waits, review_checked, waiting_for "
+            "FROM items WHERE category = 'mine' AND kind = 'pr' AND done = 0").fetchall():
+        waits = {}
+        if days > 0:
+            changed, req = db.cached_get(
+                conn, f"repos/{row['repo']}/pulls/{row['number']}/requested_reviewers",
+                keep_body=True)
+            owner = row["repo"].split("/")[0]
+            pending = [u["login"] for u in req.get("users") or []] + \
+                [f"{owner}/{t['slug']}" for t in req.get("teams") or []]
+            waits = {n: t for n, t in json.loads(row["review_waits"] or "{}").items()
+                     if n in pending}
+            if pending and (changed or set(pending) != set(waits)
+                            or row["review_checked"] != row["updated_at"]):
+                starts = _review_starts(row["repo"], row["number"], pending, login)
+                # No request event found: the timer starts now.
+                waits = {n: starts.get(n) or waits.get(n) or _iso(now) for n in pending}
+        overdue = sorted(n for n, t in waits.items()
+                         if now - db.parse_iso(t) >= timedelta(days=days))
+        waiting_for = ", ".join(overdue) or None
+        conn.execute(
+            "UPDATE items SET review_waits = ?, review_checked = ?, waiting_for = ?, "
+            "waiting_since = ? WHERE key = ? AND category = 'mine'",
+            (json.dumps(waits) if waits else None, row["updated_at"], waiting_for,
+             min((waits[n] for n in overdue), default=None), row["key"]))
+        # A new overdue reviewer gives a new pop-up.
+        if waiting_for != row["waiting_for"]:
+            conn.execute(
+                "UPDATE items SET last_notified = NULL, notify_count = 0 "
+                "WHERE key = ? AND category = 'mine'", (row["key"],))
 
 
 def refresh_stalled(conn):
@@ -471,10 +538,13 @@ def estimate_per_hour(conn):
     """Most requests each hour, if no ETag answer is 304."""
     minutes = db.get_setting(conn, "poll_minutes", float)
     open_checks = conn.execute(
-        "SELECT count(*) FROM items WHERE done = 0 AND (category = 'reminder' OR "
+        "SELECT count(*) FROM items WHERE done = 0 AND (category = 'todo' OR "
         "(category = 'action' AND reason IN ('mention', 'team_mention', 'assign')))"
         ).fetchone()[0]
-    per_sync = 6 + len(db.watched_repos(conn)) + open_checks
+    open_prs = conn.execute(
+        "SELECT count(*) FROM items WHERE category = 'mine' AND kind = 'pr' AND done = 0"
+        ).fetchone()[0]
+    per_sync = 6 + len(db.watched_repos(conn)) + open_checks + open_prs
     return round(per_sync * 60 / max(minutes, 1))
 
 
@@ -502,9 +572,10 @@ def sync(conn):
             sync_review_requests(conn, watched)
             sync_mentions(conn, watched, touched)
             check_action_items(conn, login, touched)
-            check_reminders(conn)
+            check_todos(conn)
             sync_new_items(conn, login)
             sync_mine(conn, unread)
+            refresh_waiting(conn, login)
             conn.commit()
             refresh_stalled(conn)
             db.cached_get(conn, "user", keep_body=True)

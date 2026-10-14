@@ -18,12 +18,12 @@ from . import db, state, sync
 REASONS = {
     "review_requested": ("review", "bold cyan"), "mention": ("mention", "bold magenta"),
     "team_mention": ("team mention", "magenta"), "assign": ("assigned", "yellow"),
-    "reminder": ("reminder", "bold #5fd0cc"),
+    "todo": ("todo", "bold #5fd0cc"),
     "new_issue": ("new issue", "green"), "new_pr": ("new PR", "green"),
 }
 REASON_LABELS = {
     "review_requested": "review request", "mention": "mention", "team_mention": "team mention",
-    "assign": "assigned", "reminder": "reminder", "new_issue": "new issue", "new_pr": "new PR", "author": "your item",
+    "assign": "assigned", "todo": "todo", "new_issue": "new issue", "new_pr": "new PR", "author": "your item",
     "comment": "comment", "subscribed": "subscribed", "state_change": "state change",
     "ci_activity": "CI", "manual": "subscribed", "security_alert": "security",
 }
@@ -31,7 +31,7 @@ KINDS = {"pr": ("PR", "bold #b48cf0"), "issue": ("Issue", "bold green"), "other"
 # Filters per tab, and the label of the "all" option of each filter.
 FILTER_FIELDS = {
     "action": ["repo", "kind", "reason"], "watch": ["repo", "kind"],
-    "mine": ["repo", "kind"], "reminder": ["repo", "kind"],
+    "mine": ["repo", "kind"], "todo": ["repo", "kind"],
 }
 FIELD_PROMPTS = {"repo": "All repos", "kind": "All kinds", "reason": "All types"}
 FIELD_LABELS = {
@@ -40,9 +40,10 @@ FIELD_LABELS = {
     "reason": lambda v: REASON_LABELS.get(v, v),
 }
 TABS = [("action", "Action"), ("watch", "Watch"), ("mine", "My work"),
-        ("reminder", "Reminder"), ("repos", "Repos"), ("settings", "Settings")]
+        ("todo", "ToDo"), ("repos", "Repos"), ("settings", "Settings")]
 SETTINGS = [
     ("stall_days", "Stalled after (days)"),
+    ("review_wait_days", "Review wait (days)"),
     ("default_remind_hours", "Remind every (hours)"),
     ("poll_minutes", "Sync every (minutes)"),
     ("new_item_days", "Watch history (days)"),
@@ -113,6 +114,7 @@ class InboxApp(App):
         Binding("f", "filter", "Filter"),
         Binding("x", "clear_filters", "Clear filters"),
         Binding("t", "toggle_stalled", "Hide stalled"),
+        Binding("w", "toggle_waiting", "Review overdue"),
         Binding("v", "reverse", "Reverse order"),
         Binding("h", "toggle_done", "Show done"),
         Binding("A", "all_done", "All done"),
@@ -131,6 +133,7 @@ class InboxApp(App):
         self.filters = {tab: dict.fromkeys(fields) for tab, fields in FILTER_FIELDS.items()}
         self.options = {}  # (tab, field) -> values now offered in the drop-down list
         self.hide_stalled = False
+        self.only_waiting = False
         self.oldest = dict.fromkeys(FILTER_FIELDS, False)  # tab -> oldest first
 
     def compose(self) -> ComposeResult:
@@ -146,6 +149,7 @@ class InboxApp(App):
                                              id=f"{tab_id}--{field}", type_to_search=False)
                             if tab_id == "mine":
                                 yield Checkbox("Hide stalled", id="hide-stalled")
+                                yield Checkbox("Review overdue", id="only-waiting")
                     yield DataTable(id=f"t-{tab_id}", cursor_type="row", zebra_stripes=True)
         yield Footer()
 
@@ -153,7 +157,7 @@ class InboxApp(App):
         self.query_one("#t-action", DataTable).add_columns(
             "Kind", "", "Repo", "Title", "By", "Age", "Remind")
         self.query_one("#t-watch", DataTable).add_columns("Kind", "", "Repo", "Title", "By", "Age")
-        self.query_one("#t-reminder", DataTable).add_columns(
+        self.query_one("#t-todo", DataTable).add_columns(
             "Kind", "", "Repo", "Title", "By", "Age", "Remind")
         self.query_one("#t-mine", DataTable).add_columns(
             "Kind", "", "Repo", "Title", "Updated", "Stall after", "Remind")
@@ -221,7 +225,7 @@ class InboxApp(App):
             self._title(it), it["author"] or "", ago(it["event_at"]),
             f"{it['remind_hours']:g}h" if it["remind_hours"] is not None
             else f"{float(settings['default_remind_hours']):g}h"))
-        self._fill("reminder", self._items("reminder"), lambda it: (
+        self._fill("todo", self._items("todo"), lambda it: (
             self._kind(it), self._badge(it), it["repo"] + (f"#{it['number']}" if it["number"] else ""),
             self._title(it), it["author"] or "", ago(it["event_at"]),
             f"{it['remind_hours']:g}h" if it["remind_hours"] is not None
@@ -256,6 +260,8 @@ class InboxApp(App):
                 items = [i for i in items if i[field] == value]
         if category == "mine" and self.hide_stalled:
             items = [i for i in items if not i["stalled"]]
+        if category == "mine" and self.only_waiting:
+            items = [i for i in items if i["waiting_for"]]
         return items
 
     def _update_options(self, tab_id, items):
@@ -279,8 +285,9 @@ class InboxApp(App):
             self.refresh_all()
 
     def on_checkbox_changed(self, event):
-        if self.hide_stalled != event.value:
-            self.hide_stalled = event.value
+        name = "only_waiting" if event.checkbox.id == "only-waiting" else "hide_stalled"
+        if getattr(self, name) != event.value:
+            setattr(self, name, event.value)
             self.refresh_all()
 
     def _kind(self, it):
@@ -294,6 +301,8 @@ class InboxApp(App):
 
     def _title(self, it):
         text = Text(it["title"] or "")
+        if it.get("waiting_for"):
+            text.stylize("bold #f0a070")
         if it["priority"]:
             text = Text("★ ", style="bold red") + text
         return text
@@ -303,6 +312,10 @@ class InboxApp(App):
             text = Text()
             if it["stalled"]:
                 text.append("stalled ", style="bold red")
+            if it["waiting_for"]:
+                text.append("review overdue ", style="bold red")
+            elif it["review_waits"]:
+                text.append("in review ", style="bold #a59cf5")
             if it["activity"]:
                 text.append("new activity", style="bold green")
         else:
@@ -387,7 +400,7 @@ class InboxApp(App):
     def action_remind(self):
         it = self.current()
         # Pop-ups follow the tab that shows the item. Stalled pop-ups need a My work item.
-        if not it or not (it.get("tab") in ("action", "reminder") or self._own_mine(it)):
+        if not it or not (it.get("tab") in ("action", "todo") or self._own_mine(it)):
             return
         value = "" if it["remind_hours"] is None else f"{it['remind_hours']:g}"
         self.ask("Remind me every N hours (0 = off, empty = default):", value,
@@ -414,6 +427,7 @@ class InboxApp(App):
             self.query_one(f"#{self.tab}--{field}", Select).clear()
         if self.tab == "mine":
             self.query_one("#hide-stalled", Checkbox).value = False
+            self.query_one("#only-waiting", Checkbox).value = False
         self.refresh_all()
 
     def action_reverse(self):
@@ -425,6 +439,11 @@ class InboxApp(App):
     def action_toggle_stalled(self):
         if self.tab == "mine":
             box = self.query_one("#hide-stalled", Checkbox)
+            box.value = not box.value
+
+    def action_toggle_waiting(self):
+        if self.tab == "mine":
+            box = self.query_one("#only-waiting", Checkbox)
             box.value = not box.value
 
     def action_toggle_done(self):
