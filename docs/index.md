@@ -12,8 +12,20 @@ The app uses the [`gh` CLI](https://cli.github.com/) for each GitHub request. It
 uses no AI service and no extra token. It sends only read requests, so it never
 changes anything on GitHub. All data stays on your computer.
 
+Use the app in your browser:
+
+<figure markdown>
+![The web page of GitHub Inbox](icons/web-app.png)
+</figure>
+
+Or use it in your terminal:
+
+<figure markdown>
+![The terminal UI of GitHub Inbox](icons/terminal-app.png)
+</figure>
+
 ## Where to start
 
-- **Use the app:** [install it](install.md). Then read [Use the app](usage.md).
-- **Know which problems the app solves:** read [Why gh-inbox?](scenarios.md).
+- [Install](install.md) the app and then read [Use the app](usage.md).
+- **Know which problems the app solves:** read [Why gh-inbox?](scenarios.md)
 - **Change the code:** read [For developers](developers.md).
