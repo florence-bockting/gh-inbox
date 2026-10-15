@@ -122,8 +122,9 @@ The files have no signature. macOS and Windows show a warning the first time.
 On macOS, right-click the file and select **Open**.
 On Windows, click **More info**, then **Run anyway**.
 
-To publish a new release, push a tag such as `v0.1.0`.
-The `Release` workflow then builds the 3 files and attaches them to the release.
+To publish a new release, change `version` in `pyproject.toml` and push to `main`.
+When CI passes, the `Release` workflow makes the tag, builds the 3 files and attaches them to the release.
+A tag such as `v0.2.0` that you push by hand also starts a release.
 
 ### Install
 

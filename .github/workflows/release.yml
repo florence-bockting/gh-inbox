@@ -1,11 +1,58 @@
 name: Release
 
+# Two starts:
+# - CI passes on a push to main. The workflow releases when no tag exists for the
+#   version in pyproject.toml. So a new version number makes a new release.
+# - You push a tag such as v0.2.0 by hand.
 on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   push:
     tags: ["v*"]
 
 jobs:
+  version:
+    if: >-
+      github.event_name == 'push' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+      sha: ${{ steps.check.outputs.sha }}
+      release: ${{ steps.check.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - id: check
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          sha=$(git rev-parse HEAD)
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            tag=$GITHUB_REF_NAME
+            if [ "$tag" != "v$version" ]; then
+              echo "::error::Tag $tag does not match version $version in pyproject.toml"
+              exit 1
+            fi
+            release=true
+          else
+            tag=v$version
+            if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null; then
+              echo "Tag $tag exists. No release."
+              release=false
+            else
+              release=true
+            fi
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: version
+    if: needs.version.outputs.release == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -19,6 +66,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -35,7 +84,7 @@ jobs:
           path: dist/${{ matrix.asset }}
 
   release:
-    needs: build
+    needs: [version, build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -44,12 +93,14 @@ jobs:
         with:
           path: assets
           merge-multiple: true
-      # Add the files to a release made by hand. Otherwise make a new release.
+      # Add the files to a release made by hand. Otherwise make a new release and its tag.
       - run: |
-          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" assets/* --repo "$GITHUB_REPOSITORY" --clobber
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$TAG" assets/* --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$GITHUB_REF_NAME" assets/* --repo "$GITHUB_REPOSITORY" --generate-notes
+            gh release create "$TAG" assets/* --repo "$GITHUB_REPOSITORY" --target "$SHA" --generate-notes
           fi
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+          SHA: ${{ needs.version.outputs.sha }}
