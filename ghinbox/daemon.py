@@ -8,29 +8,38 @@ import time
 from . import db, reminders, sync, web
 
 TICK_SECONDS = 60
+log = logging.getLogger(__name__)
+
+
+def poll_round(conn, last_sync):
+    """Run one tick. Return the time of the last sync."""
+    db.set_meta(conn, "heartbeat", str(time.time()))
+    minutes = db.get_setting(conn, "poll_minutes", float)
+    if time.time() - last_sync >= minutes * 60:
+        result = sync.sync(conn)
+        log.info("sync: %s", result)
+        if result != "busy":
+            last_sync = time.time()
+    else:
+        # Stall times grow without a sync; check them every tick.
+        sync.refresh_stalled(conn)
+    reminders.rate_warning(conn)
+    sent = reminders.run(conn)
+    if sent:
+        log.info("pop-ups for %d items", sent)
+    return last_sync
 
 
 def poll_loop(stop):
     conn = db.connect()
     last_sync = 0.0
     while not stop.is_set():
-        db.set_meta(conn, "heartbeat", str(time.time()))
-        minutes = db.get_setting(conn, "poll_minutes", float)
-        if time.time() - last_sync >= minutes * 60:
-            result = sync.sync(conn)
-            logging.info("sync: %s", result)
-            if result != "busy":
-                last_sync = time.time()
-        else:
-            # Stall times grow without a sync; check them every tick.
-            sync.refresh_stalled(conn)
+        # One failed tick must not stop the poller.
         try:
-            reminders.rate_warning(conn)
-            sent = reminders.run(conn)
-            if sent:
-                logging.info("pop-ups for %d items", sent)
+            last_sync = poll_round(conn, last_sync)
         except Exception:
-            logging.exception("reminders failed")
+            conn.rollback()
+            log.exception("poll round failed")
         stop.wait(TICK_SECONDS)
 
 
@@ -46,7 +55,7 @@ def main():
         raise SystemExit(f"Port {web.PORT} is in use. Is the daemon already running? ({exc})")
     stop = threading.Event()
     threading.Thread(target=poll_loop, args=(stop,), daemon=True).start()
-    logging.info("daemon started on http://%s:%d", web.HOST, web.PORT)
+    log.info("daemon started on http://%s:%d", web.HOST, web.PORT)
     if sys.stdout:  # pythonw on Windows has no console
         print(f"GitHub Inbox runs at http://{web.HOST}:{web.PORT}  (Ctrl+C stops it)")
     try:

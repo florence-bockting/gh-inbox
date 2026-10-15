@@ -17,7 +17,10 @@ LOCK_WAIT = 5  # seconds
 
 
 def _path(value):
-    return Path(value).expanduser()
+    try:
+        return Path(value).expanduser()
+    except RuntimeError as exc:  # "~name" for a user that does not exist
+        raise ValueError(f"{value}: {exc}") from exc
 
 
 def load(file):

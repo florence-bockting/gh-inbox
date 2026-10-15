@@ -3,3 +3,6 @@ __pycache__/
 *.egg-info/
 # Your notes, when the "Notes file" setting points into the repo
 notes.csv
+# PyInstaller output
+build/
+dist/

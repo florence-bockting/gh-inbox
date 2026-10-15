@@ -32,7 +32,7 @@ def api(path, paginate=False, jq=None):
     if jq:
         cmd += ["--jq", jq]
     cmd.append(path)
-    proc = subprocess.run(cmd, capture_output=True, text=True,
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False,
                           encoding="utf-8", errors="replace", timeout=120,
                           **osdeps.NO_WINDOW)
     if proc.returncode != 0:
@@ -66,7 +66,7 @@ def request(path, etag=None):
     if etag:
         cmd += ["-H", f"If-None-Match: {etag}"]
     cmd.append(path)
-    proc = subprocess.run(cmd, capture_output=True, text=True,
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False,
                           encoding="utf-8", errors="replace", timeout=120,
                           **osdeps.NO_WINDOW)
     # gh exits with 1 on a 304, so read the status line, not the exit code.

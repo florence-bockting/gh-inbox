@@ -2,16 +2,26 @@
 
 import webbrowser
 from datetime import datetime, timezone
+from typing import ClassVar
 
 from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
-from textual.coordinate import Coordinate
 from textual.screen import ModalScreen
 from textual.widgets import (
-    Checkbox, DataTable, Footer, Header, Input, Label, Select, Static, TabbedContent, TabPane)
+    Checkbox,
+    DataTable,
+    Footer,
+    Header,
+    Input,
+    Label,
+    Select,
+    Static,
+    TabbedContent,
+    TabPane,
+)
 
 from . import db, state, sync
 
@@ -75,7 +85,7 @@ class Prompt(ModalScreen):
     Prompt > Vertical { width: 64; height: auto; padding: 1 2; border: round $accent;
                         background: $panel; }
     """
-    BINDINGS = [("escape", "cancel", "Cancel")]
+    BINDINGS: ClassVar = [("escape", "cancel", "Cancel")]
 
     def __init__(self, question, value=""):
         super().__init__()
@@ -102,7 +112,7 @@ class InboxApp(App):
     .filters Select { width: 1fr; }
     .filters Checkbox { width: auto; }
     """
-    BINDINGS = [
+    BINDINGS: ClassVar = [
         *[Binding(str(n), f"show_tab('{tab}')", label, show=False)
           for n, (tab, label) in enumerate(TABS, 1)],
         Binding("u", "sync", "Sync"),
@@ -476,7 +486,7 @@ class InboxApp(App):
         self.call_from_thread(self.notify, "Loading your GitHub repos…")
         try:
             sync.load_repo_candidates(db.connect())
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - show every failure to the user
             self.call_from_thread(self.notify, str(exc), severity="error")
         self.call_from_thread(self.refresh_all)
 

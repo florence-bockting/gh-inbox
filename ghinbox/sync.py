@@ -66,9 +66,9 @@ def upsert(conn, item, reopen=True, bump=True):
     reason = row["reason"]
     if newer:
         reason = item.get("reason") or reason
-    elif item["category"] == "action" and item.get("reason") in ACTION_PRIORITY:
-        if ACTION_PRIORITY[item["reason"]] < ACTION_PRIORITY.get(reason, 99):
-            reason = item["reason"]
+    elif (item["category"] == "action" and item.get("reason") in ACTION_PRIORITY
+          and ACTION_PRIORITY[item["reason"]] < ACTION_PRIORITY.get(reason, 99)):
+        reason = item["reason"]
     event_at = item["event_at"] if newer and bump else row["event_at"]
     conn.execute(
         "UPDATE items SET title = coalesce(?, title), url = coalesce(?, url), "
@@ -585,7 +585,7 @@ def sync(conn):
             db.set_meta(conn, "last_sync", db.now_iso())
             db.set_meta(conn, "last_error", "")
             return "ok"
-        except Exception as exc:  # report every failure in the UI
+        except Exception as exc:  # noqa: BLE001 - report every failure in the UI
             conn.rollback()
             db.set_meta(conn, "last_error", f"{db.now_iso()} {exc}")
             return f"error: {exc}"

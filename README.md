@@ -108,6 +108,23 @@ shows the notification as unread.
 | `gh` CLI | Yes | Yes | Yes |
 | Pop-ups | `notify-send` | Built in | Built in |
 
+### Download the executable
+
+This way needs no Python.
+
+1. Install the [`gh` CLI](https://cli.github.com). Then log in with `gh auth login`.
+2. Download the file for your system from the
+   [latest release](https://github.com/florence-bockting/gh-inbox/releases/latest).
+3. On Linux and macOS, make the file executable: `chmod +x gh-inbox-linux`.
+4. Start the app: `./gh-inbox-linux web`.
+
+The files have no signature. macOS and Windows show a warning the first time.
+On macOS, right-click the file and select **Open**.
+On Windows, click **More info**, then **Run anyway**.
+
+To publish a new release, push a tag such as `v0.1.0`.
+The `Release` workflow then builds the 3 files and attaches them to the release.
+
 ### Install
 
 1. Install the [`gh` CLI](https://cli.github.com). Then log in with your own GitHub account:
@@ -116,35 +133,64 @@ shows the notification as unread.
    gh auth login
    ```
 
-2. Get the code and install it:
+2. Get the code:
 
    ```bash
    git clone https://github.com/florence-bockting/gh-inbox.git
    cd gh-inbox
-   python3 -m venv .venv
-   .venv/bin/pip install -e .
    ```
-   On **Linux**
+
+3. Install the app in a virtual environment. This also installs Flask and Textual.
+
+   On **Linux** and **macOS**:
+
    ```bash
    python3 -m venv .venv
    .venv/bin/pip install -e .
-   # start app in the browser
-   .venv/bin/gh-inbox web
    ```
-   On **Windows**
+
+   On **Windows**:
+
    ```bash
    py -m venv .venv
    .venv\Scripts\pip install -e .
-   # start app in the browser
-   .venv\Scripts\gh-inbox.exe web   
    ```
 
-3. Open http://127.0.0.1:8765 in your browser.
+4. Start the app:
 
-4. Open the **Repos** tab. Click **Load my GitHub repos**, or type `owner/repo`.
+   ```bash
+   .venv/bin/gh-inbox web              # Linux and macOS
+   .venv\Scripts\gh-inbox.exe web      # Windows
+   ```
+
+   The command starts the daemon and opens http://127.0.0.1:8765 in your browser.
+   Keep the terminal open. Ctrl+C stops the daemon.
+
+5. Open the **Repos** tab. Click **Load my GitHub repos**, or type `owner/repo`.
    Then select the repos to watch.
 
-5. Click **Sync** and wait for the updates to appear.
+6. Click **Sync now** and wait for the updates to appear.
+
+### Update
+
+The daemon keeps the old code until you restart it.
+
+1. Get the new code:
+
+   ```bash
+   git pull
+   ```
+
+2. Install again. A new version can add dependencies:
+
+   ```bash
+   .venv/bin/pip install -e .          # Linux and macOS
+   .venv\Scripts\pip install -e .      # Windows
+   ```
+
+3. Stop the daemon: press Ctrl+C in its terminal.
+
+4. Start the app again with `gh-inbox web`.
 
 ### Use the app
 
@@ -199,8 +245,8 @@ Keys in the terminal UI:
 
 ### Design
 
-- **Python standard library only**, plus [Textual](https://textual.textualize.io/)
-  for the terminal UI.
+- **Two dependencies:** [Flask](https://flask.palletsprojects.com/) for the web
+  page, and [Textual](https://textual.textualize.io/) for the terminal UI.
 - **`gh api`** makes every GitHub request. The app stores no token.
 - **SQLite** in WAL mode holds the state. The daemon, the web page and the
   terminal UI can use it at the same time.
@@ -218,8 +264,8 @@ Keys in the terminal UI:
 | `ghinbox/osdeps.py` | All code that differs between Linux, macOS and Windows |
 | `ghinbox/state.py` | The UI actions that both UIs share |
 | `ghinbox/daemon.py` | Timer for sync and pop-ups, plus the web server |
-| `ghinbox/web.py` | JSON API for the web page |
-| `ghinbox/static/index.html` | The web page (HTML, CSS and JavaScript in one file) |
+| `ghinbox/web.py` | Flask app: JSON API for the web page |
+| `ghinbox/static/` | The web page: `index.html`, `app.css` and `app.js` |
 | `ghinbox/tui.py` | The terminal UI |
 | `ghinbox/cli.py` | The `gh-inbox` command |
 
@@ -249,6 +295,25 @@ Your own values stay: done, reminder interval, stall time, priority and tab.
   as arguments or environment variables. A title can then not run code.
 - **Keep the web server safe.** It binds `127.0.0.1` only. It refuses a foreign
   `Host` header. Each POST needs the header `X-GH-Inbox: 1`.
+
+### Run the tests
+
+Install the developer tools:
+
+```bash
+.venv/bin/pip install -e ".[dev]"
+```
+
+Run the checks. CI runs the same checks on Linux and Windows:
+
+```bash
+.venv/bin/ruff check ghinbox tests
+.venv/bin/pytest -q tests
+.venv/bin/pip-audit --skip-editable
+```
+
+The page sends a `Content-Security-Policy` header that blocks inline scripts and
+styles. Put new JavaScript in `app.js`. Put new CSS in `app.css`.
 
 ### Use test data
 

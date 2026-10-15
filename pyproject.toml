@@ -7,7 +7,10 @@ name = "gh-inbox"
 version = "0.1.0"
 description = "A local interface for GitHub notifications, built on the gh CLI"
 requires-python = ">=3.10"
-dependencies = ["textual>=0.60"]
+dependencies = ["flask>=3.1", "textual>=0.60"]
+
+[project.optional-dependencies]
+dev = ["pip-audit", "pytest", "ruff==0.17.0"]
 
 [project.scripts]
 gh-inbox = "ghinbox.cli:main"
@@ -16,4 +19,4 @@ gh-inbox = "ghinbox.cli:main"
 packages = ["ghinbox"]
 
 [tool.setuptools.package-data]
-ghinbox = ["static/*.html"]
+ghinbox = ["static/*"]

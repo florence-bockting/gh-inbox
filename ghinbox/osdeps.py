@@ -8,7 +8,8 @@ import socket
 import subprocess
 import sys
 from contextlib import contextmanager
-from http.server import ThreadingHTTPServer
+from socketserver import ThreadingMixIn
+from wsgiref.simple_server import WSGIServer
 
 WINDOWS = sys.platform == "win32"
 MACOS = sys.platform == "darwin"
@@ -89,13 +90,14 @@ def try_lock(path):
 
 # ---- one daemon at a time ---------------------------------------------------
 
-class ExclusiveHTTPServer(ThreadingHTTPServer):
+class ExclusiveWSGIServer(ThreadingMixIn, WSGIServer):
     """A second daemon must fail to bind the port, so that no pop-up comes twice.
 
     On Windows, SO_REUSEADDR lets two processes bind the same port. Use
     SO_EXCLUSIVEADDRUSE there instead.
     """
 
+    daemon_threads = True
     allow_reuse_address = not WINDOWS
 
     def server_bind(self):
