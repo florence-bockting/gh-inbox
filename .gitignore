@@ -6,3 +6,5 @@ notes.csv
 # PyInstaller output
 build/
 dist/
+# MkDocs output
+site/

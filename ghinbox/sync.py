@@ -331,7 +331,10 @@ def _add_todo(conn, row, issue, at):
 
 
 def check_todos(conn):
-    """Mark a to-do done when its issue or PR closes. One request for each open to-do."""
+    """Refresh the title and state of open to-dos. One request for each open to-do.
+
+    A close does not mark a to-do done: a follow-up task can outlive a merged PR.
+    """
     for row in conn.execute(
             "SELECT key, repo, number FROM items WHERE category = 'todo' AND done = 0"
             ).fetchall():
@@ -341,8 +344,6 @@ def check_todos(conn):
             "UPDATE items SET title = ?, state = ?, updated_at = ? "
             "WHERE key = ? AND category = 'todo'",
             (issue["title"], issue["state"], issue["updated_at"], row["key"]))
-        if issue["state"] == "closed":
-            _auto_done(conn, row["key"], "todo", "closed")
 
 
 # ---- new issues and PRs in watched repos ------------------------------------

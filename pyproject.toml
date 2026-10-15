@@ -13,6 +13,7 @@ dependencies = ["flask>=3.1", "textual>=0.60"]
 
 [project.optional-dependencies]
 dev = ["pip-audit", "pytest", "ruff==0.17.0"]
+docs = ["mkdocs<2", "mkdocs-material>=9.5"]
 
 [project.scripts]
 gh-inbox = "ghinbox.cli:main"
