@@ -1,4 +1,4 @@
-# Scenario
+# Scenarios
 
 This file lists the scenarios that the app must support. A checked box means
 that the app supports the scenario now.
