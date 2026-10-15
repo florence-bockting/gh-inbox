@@ -62,7 +62,7 @@ def rate_warning(conn):
     db.set_meta(conn, "rate_warned", str(rate["reset"]))
     if db.get_setting(conn, "notify", float):
         osdeps.notify(
-            "GitHub Inbox: few API requests left",
+            "gh-inbox: few API requests left",
             f"{rate['remaining']} of {rate['limit']} left until {rate['reset_clock']}. "
             "Watch fewer repos or sync less often.", urgent=True)
 
@@ -74,7 +74,7 @@ def run(conn):
         return 0
     if db.get_setting(conn, "notify", float):
         if len(rows) > MAX_POPUPS:
-            osdeps.notify(f"GitHub Inbox: {len(rows)} items need you",
+            osdeps.notify(f"gh-inbox: {len(rows)} items need you",
                           "Open the app to see them.", urgent=any(r["notify_count"] for r in rows))
         else:
             for row in rows:

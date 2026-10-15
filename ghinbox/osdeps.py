@@ -53,7 +53,7 @@ def notify(title, body, urgent=False):
                "-e", "display notification (item 2 of argv) with title (item 1 of argv)",
                "-e", "end run", title, body]
     else:
-        cmd = ["notify-send", "--app-name=GitHub Inbox", "-u", "critical" if urgent else "normal",
+        cmd = ["notify-send", "--app-name=gh-inbox", "-u", "critical" if urgent else "normal",
                title, body]
     try:
         subprocess.run(cmd, check=False, timeout=20, env=env, **NO_WINDOW)

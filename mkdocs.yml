@@ -1,4 +1,4 @@
-site_name: GitHub Inbox
+site_name: gh-inbox
 site_description: A local inbox for your GitHub notifications, built on the gh CLI
 site_url: https://florence-bockting.github.io/gh-inbox/
 repo_url: https://github.com/florence-bockting/gh-inbox

@@ -1,6 +1,6 @@
 # Use the app
 
-You can use GitHub Inbox in two ways:
+You can use gh-inbox in two ways:
 
 - In your browser, on a local web page.
 - In your terminal, with a text interface.
@@ -38,7 +38,7 @@ You can use GitHub Inbox in two ways:
     The command opens http://127.0.0.1:8765 in your browser.
 
     <figure markdown>
-    ![The web page of GitHub Inbox](icons/web-app.png)
+    ![The web page of gh-inbox](icons/web-app.png)
     </figure>
 
     Each item has these buttons in the web page.
@@ -82,7 +82,7 @@ You can use GitHub Inbox in two ways:
         ```
 
     <figure markdown>
-    ![The terminal UI of GitHub Inbox](icons/terminal-app.png)
+    ![The terminal UI of gh-inbox](icons/terminal-app.png)
     </figure>
 
     Keys in the terminal UI:

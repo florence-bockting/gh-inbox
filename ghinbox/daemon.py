@@ -57,7 +57,7 @@ def main():
     threading.Thread(target=poll_loop, args=(stop,), daemon=True).start()
     log.info("daemon started on http://%s:%d", web.HOST, web.PORT)
     if sys.stdout:  # pythonw on Windows has no console
-        print(f"GitHub Inbox runs at http://{web.HOST}:{web.PORT}  (Ctrl+C stops it)")
+        print(f"gh-inbox runs at http://{web.HOST}:{web.PORT}  (Ctrl+C stops it)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -4,7 +4,7 @@
 
 ### The gh CLI
 
-GitHub Inbox is built on the [`gh` CLI](https://cli.github.com),
+gh-inbox is built on the [`gh` CLI](https://cli.github.com),
 the official GitHub command-line tool.
 The app does not connect to GitHub itself.
 In the background, it runs `gh api` for each request to GitHub.
@@ -12,7 +12,7 @@ In the background, it runs `gh api` for each request to GitHub.
 The app does not keep a GitHub token of its own.
 
 The app does not work without `gh`.
-Install and log in to `gh` before you install GitHub Inbox.
+Install and log in to `gh` before you install gh-inbox.
 
 1. Install `gh` for your system. Follow the
    [installation instructions](https://github.com/cli/cli#installation).
@@ -42,7 +42,7 @@ The executable needs no Python and no `uv`. Only the install from the source nee
 
 ## Installation
 
-Install GitHub Inbox in one of the two ways below.
+Install gh-inbox in one of the two ways below.
 
 ### Download the executable
 

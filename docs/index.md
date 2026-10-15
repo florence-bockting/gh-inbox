@@ -1,4 +1,4 @@
-# GitHub Inbox
+# gh-inbox
 
 !!! note
     This app is a prototype in a test phase. Feedback is welcome: please
@@ -15,13 +15,13 @@ changes anything on GitHub. All data stays on your computer.
 Use the app in your browser:
 
 <figure markdown>
-![The web page of GitHub Inbox](icons/web-app.png)
+![The web page of gh-inbox](icons/web-app.png)
 </figure>
 
 Or use it in your terminal:
 
 <figure markdown>
-![The terminal UI of GitHub Inbox](icons/terminal-app.png)
+![The terminal UI of gh-inbox](icons/terminal-app.png)
 </figure>
 
 ## Where to start

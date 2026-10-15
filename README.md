@@ -1,4 +1,4 @@
-# GitHub Inbox
+# gh-inbox
 
 > [!NOTE]
 > This app is a prototype in a test phase. Feedback is welcome: please
@@ -16,11 +16,11 @@ changes anything on GitHub. All data stays on your computer.
 
 Use the app in your browser:
 
-![The web page of GitHub Inbox](docs/icons/web-app.png)
+![The web page of gh-inbox](docs/icons/web-app.png)
 
 Or use it in your terminal:
 
-![The terminal UI of GitHub Inbox](docs/icons/terminal-app.png)
+![The terminal UI of gh-inbox](docs/icons/terminal-app.png)
 
 ## Quick start
 
@@ -35,3 +35,5 @@ To install from the source, see [Install](https://florence-bockting.github.io/gh
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+gh-inbox is not affiliated with or endorsed by GitHub.

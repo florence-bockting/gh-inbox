@@ -40,6 +40,6 @@ def main(argv=None):
     elif args.command == "sync":
         print(sync.sync(db.connect()))
     elif args.command == "test-popup":
-        osdeps.notify("GitHub Inbox test", "A normal pop-up.")
-        osdeps.notify("GitHub Inbox test", "An urgent pop-up, as for a reminder.", urgent=True)
+        osdeps.notify("gh-inbox test", "A normal pop-up.")
+        osdeps.notify("gh-inbox test", "An urgent pop-up, as for a reminder.", urgent=True)
         print("Sent 2 pop-ups: one normal, one urgent.")
