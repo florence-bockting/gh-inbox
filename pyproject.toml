@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,6 +7,8 @@ name = "gh-inbox"
 version = "0.1.0"
 description = "A local interface for GitHub notifications, built on the gh CLI"
 requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = ["flask>=3.1", "textual>=0.60"]
 
 [project.optional-dependencies]
