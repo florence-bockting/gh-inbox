@@ -18,9 +18,14 @@ LOCK_WAIT = 5  # seconds
 
 def _path(value):
     try:
-        return Path(value).expanduser()
+        path = Path(value).expanduser()
     except RuntimeError as exc:  # "~name" for a user that does not exist
         raise ValueError(f"{value}: {exc}") from exc
+    # Windows does not fail for "~name". It guesses a folder next to your home folder.
+    head = value.replace("\\", "/").split("/")[0]
+    if head.startswith("~") and head != "~" and not Path(head).expanduser().is_dir():
+        raise ValueError(f"{value}: no home folder for {head}")
+    return path
 
 
 def load(file):
