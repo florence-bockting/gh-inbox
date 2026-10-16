@@ -4,7 +4,7 @@ import threading
 from wsgiref.simple_server import WSGIRequestHandler
 from wsgiref.simple_server import make_server as wsgi_server
 
-from flask import Flask, request
+from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 
 from . import db, osdeps, state, sync
@@ -62,6 +62,17 @@ def create_app():
         with lock:
             return state.status(conn)
 
+    # make_server sets STOP. The test app has no server to stop.
+    @app.post("/api/stop")
+    def stop():
+        if "STOP" not in app.config:
+            return {"error": "no daemon to stop"}, 400
+        # Stop only after the answer is sent. Else the process ends first and the
+        # browser shows "Failed to fetch".
+        response = jsonify(ok=True)
+        response.call_on_close(app.config["STOP"])
+        return response
+
     # Sync uses its own lock; do not block the other requests meanwhile.
     @app.post("/api/sync")
     def run_sync():
@@ -99,5 +110,10 @@ class QuietHandler(WSGIRequestHandler):
 
 
 def make_server():
-    return wsgi_server(HOST, PORT, create_app(),
-                       server_class=osdeps.ExclusiveWSGIServer, handler_class=QuietHandler)
+    app = create_app()
+    server = wsgi_server(HOST, PORT, app,
+                         server_class=osdeps.ExclusiveWSGIServer, handler_class=QuietHandler)
+    # shutdown() waits for serve_forever() to end. Call it from another thread, so that
+    # the stop request can send its answer.
+    app.config["STOP"] = lambda: threading.Thread(target=server.shutdown).start()
+    return server

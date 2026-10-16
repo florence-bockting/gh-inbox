@@ -111,7 +111,7 @@ You can use gh-inbox in two ways:
 
 ## First steps
 
-Do these steps once, after the first start. Then the inbox fills up.
+Do steps 1 to 3 once, after the first start. Then the inbox fills up. Do step 4 when you want to stop the app.
 
 1. **Select the repos to watch.** Open the **Repos** tab.
 
@@ -134,8 +134,11 @@ Do these steps once, after the first start. Then the inbox fills up.
 
     === "In the browser"
 
-        Type a new value in a field. The app saves the value when you leave the
-        field.
+        Type a new value in a field. Then click **Apply**. The app saves no
+        change before you click **Apply**.
+
+        **Reset to defaults** fills in the default values. Click **Apply** to
+        save them.
 
     === "In the terminal"
 
@@ -148,11 +151,27 @@ Do these steps once, after the first start. Then the inbox fills up.
 3. **Sync.** Click **Sync now**, or press `u` in the terminal. Wait for the
    items to appear in the tabs.
 
+4. **Stop the daemon.** The daemon keeps running when you close the terminal or the
+   web page. It then still syncs and sends pop-ups. Stop the daemon with:
+
+    === "In the browser"
+
+        Click **Stop daemon**.
+
+    === "In the terminal"
+
+        Run `gh-inbox stop`.
+
 ## Basic commands
 
 The background process (the "daemon") syncs with GitHub every 60 minutes
 ([default settings](#default-settings)). It
 sends the pop-ups and serves the web page.
+
+The daemon runs in the background. You can close the terminal after `gh-inbox web`.
+To stop the daemon, click **Stop daemon** on the web page, or run `gh-inbox stop`.
+The web page then shows "The daemon stopped" within 5 seconds.
+When the daemon runs again, the open page reloads.
 
 Run these commands in a terminal on Linux and macOS, or in PowerShell on Windows.
 To get the `gh-inbox` command, see [Install](install.md).
@@ -162,7 +181,8 @@ To get the `gh-inbox` command, see [Install](install.md).
     | Command | What it does |
     | :-- | :-- |
     | `gh-inbox daemon` | Starts the background process. Only one can run. |
-    | `gh-inbox web` | Opens the web page. Starts the daemon if it does not run. |
+    | `gh-inbox web` | Opens the web page. Starts the daemon in the background if it does not run. |
+    | `gh-inbox stop` | Stops the daemon |
     | `gh-inbox tui` | Opens the terminal UI |
     | `gh-inbox sync` | Runs one sync now |
     | `gh-inbox test-popup` | Sends 2 test pop-ups |
@@ -172,7 +192,8 @@ To get the `gh-inbox` command, see [Install](install.md).
     | Command | What it does |
     | :-- | :-- |
     | `gh-inbox daemon` | Starts the background process. Only one can run. |
-    | `gh-inbox web` | Opens the web page. Starts the daemon if it does not run. |
+    | `gh-inbox web` | Opens the web page. Starts the daemon in the background if it does not run. |
+    | `gh-inbox stop` | Stops the daemon |
     | `gh-inbox tui` | Opens the terminal UI |
     | `gh-inbox sync` | Runs one sync now |
     | `gh-inbox test-popup` | Sends 2 test pop-ups |
@@ -182,7 +203,8 @@ To get the `gh-inbox` command, see [Install](install.md).
     | Command | What it does |
     | :-- | :-- |
     | `gh-inbox.exe daemon` | Starts the background process. Only one can run. |
-    | `gh-inbox.exe web` | Opens the web page. Starts the daemon if it does not run. |
+    | `gh-inbox.exe web` | Opens the web page. Starts the daemon in the background if it does not run. |
+    | `gh-inbox.exe stop` | Stops the daemon |
     | `gh-inbox.exe tui` | Opens the terminal UI |
     | `gh-inbox.exe sync` | Runs one sync now |
     | `gh-inbox.exe test-popup` | Sends 2 test pop-ups |
@@ -248,7 +270,23 @@ A pop-up appears when...
 A pop-up comes again after the [reminder interval](#default-settings)
 until you act. You can set an interval for each item (![reminder](icons/reminder.svg){ height="16" }). 0 turns the reminders off.
 
+The title of a pop-up starts with an emoji. The emoji shows the type:
+
+| Emoji | Pop-up |
+| :-- | :-- |
+| 🔍 | Review requested |
+| 💬 | You were mentioned |
+| 👥 | Your team was mentioned |
+| 📌 | You were assigned |
+| 🔔 | Other action item |
+| ✅ | Your to-do |
+| ⏳ | Review overdue |
+| 💤 | Stalled |
+| 📬 | Summary of more than 5 pop-ups |
+| ⚠️ | Few GitHub API requests left |
+
 More than 5 pop-ups at the same time become one summary pop-up.
+The app sends the pop-ups 2 seconds apart. Some desktops do not show pop-ups that come faster.
 
 ### Default settings
 
@@ -343,7 +381,7 @@ The status bar is at the top of the web page and of the terminal UI. It shows:
 | :-- | :-- |
 | `@your-login` | The GitHub account that `gh` uses |
 | `synced 5m ago` | The time of the last sync. Before the first sync: `never synced`. |
-| `poller running` | The daemon syncs with GitHub. In red: `poller not running`. Start the daemon again. |
+| `poller running` | The daemon syncs with GitHub. In red: `poller not running`. Run `gh-inbox web` to start the daemon again. |
 | `sync error` | The last sync failed. In the web page, move the mouse on it to see the error. |
 | `API 4800/5000` | GitHub API requests left in this hour, and the limit. See [GitHub API use](#github-api-use). |
 

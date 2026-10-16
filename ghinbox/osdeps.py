@@ -61,6 +61,23 @@ def notify(title, body, urgent=False):
         pass
 
 
+# ---- daemon in the background -----------------------------------------------
+
+def start_daemon(err_path):
+    """Start the daemon as its own process. It keeps running when the terminal closes."""
+    if getattr(sys, "frozen", False):  # the PyInstaller executable
+        cmd = [sys.executable, "daemon"]
+    else:
+        cmd = [sys.executable, "-m", "ghinbox", "daemon"]
+    if WINDOWS:
+        kwargs = {"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
+    else:
+        kwargs = {"start_new_session": True}
+    with open(err_path, "ab") as err:
+        subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=err, **kwargs)
+
+
 # ---- one sync at a time -----------------------------------------------------
 
 @contextmanager

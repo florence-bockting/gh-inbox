@@ -330,6 +330,12 @@ document.addEventListener("click", async (e) => {
     return updateApply();
   }
   if (t.id === "applySettings") return applySettings();
+  if (t.id === "stopDaemon"
+      && confirm("Stop the daemon? Sync and pop-ups stop until you run gh-inbox web again.")) {
+    try { await post("/api/stop"); }
+    catch (err) { return alert(err.message); }
+    return showStopped();
+  }
   if (t.id === "sync") {
     t.disabled = true; t.textContent = "Syncing…";
     try { const r = await post("/api/sync"); if (r.result !== "ok") alert("Sync: " + r.result); }
@@ -381,8 +387,24 @@ document.addEventListener("input", (e) => {
 });
 
 render();
+let stopped = false;
+let ticks = 0;
+
+function showStopped() {
+  stopped = true;
+  document.querySelectorAll("header button, header input").forEach((b) => { b.disabled = true; });
+  $("#tabs").innerHTML = $("#main").innerHTML = $("#status").innerHTML = "";
+  $("#banner").textContent = "The daemon stopped. To start it again, run gh-inbox web in a terminal.";
+}
+
+// Check every 5 s that the daemon runs. When it runs again, reload the page.
 // Refresh from the local database every 30 s. This makes no GitHub request.
-setInterval(() => {
-  if (!document.querySelector("input:focus, select:focus, textarea:focus, .note-edit:not([hidden])")
+setInterval(async () => {
+  let up = true;
+  try { await fetch("/api/status", {method: "HEAD"}); } catch { up = false; }
+  if (stopped) { if (up) location.reload(); return; }
+  if (!up) return showStopped();
+  if (++ticks % 6 === 0
+      && !document.querySelector("input:focus, select:focus, textarea:focus, .note-edit:not([hidden])")
       && !Object.keys(changedSettings()).length) render();
-}, 30000);
+}, 5000);

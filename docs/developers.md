@@ -72,6 +72,28 @@ Run the checks. CI runs the same checks on Linux, macOS and Windows:
 The page sends a `Content-Security-Policy` header that blocks inline scripts and
 styles. Put new JavaScript in `app.js`. Put new CSS in `app.css`.
 
+## Run your changes
+
+`uv tool install .` copies the code. A change in the folder then has no effect on
+the `gh-inbox` command. Install the command as editable. It then runs the code in
+the folder:
+
+```bash
+uv tool install --force --editable .
+```
+
+You can have two `gh-inbox` commands: `.venv/bin/gh-inbox` and the `uv tool` command.
+Run `which -a gh-inbox` to see which one comes first in your `PATH`.
+
+A change to a Python file needs a daemon restart:
+
+```bash
+gh-inbox stop
+gh-inbox web
+```
+
+A change to `app.js`, `app.css` or `index.html` needs only a page reload.
+
 ## Use test data
 
 Set `GH_INBOX_DIR` to a new folder. The app then does not touch your real data:

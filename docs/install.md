@@ -163,9 +163,13 @@ This way needs no Python.
 
 `uv` installs the app in its own environment. It puts the `gh-inbox` command in your `PATH`.
 If your shell does not find `gh-inbox`, run `uv tool update-shell`. Then open a new terminal.
+The install is a copy of the code. A later change in the folder has no effect on the command.
+To use a new release, see [Update an install from the source](#update-an-install-from-the-source).
+To change the code, see [Run your changes](developers.md#run-your-changes).
 
 The command starts the [daemon](usage.md#basic-commands) and opens http://127.0.0.1:8765 in your browser.
-Keep the terminal open. Ctrl+C stops the daemon.
+The daemon runs in the background. You can close the terminal.
+To stop the daemon, click **Stop daemon** on the web page, or run `gh-inbox stop`.
 
 Then set up the app in the browser. For the terminal UI, see [Start the app](usage.md#start-the-app).
 
@@ -187,7 +191,7 @@ Update the app in the same way that you installed it.
 
 === "Linux"
 
-    1. Stop the daemon: press Ctrl+C in its terminal.
+    1. Stop the daemon: click **Stop daemon** on the web page.
     2. Download the new `gh-inbox-linux` from the
        [latest release](https://github.com/florence-bockting/gh-inbox/releases/latest).
     3. Replace the old file with the new file.
@@ -205,7 +209,7 @@ Update the app in the same way that you installed it.
 
 === "macOS"
 
-    1. Stop the daemon: press Ctrl+C in its terminal.
+    1. Stop the daemon: click **Stop daemon** on the web page.
     2. Download the new `gh-inbox-macos` from the
        [latest release](https://github.com/florence-bockting/gh-inbox/releases/latest).
     3. Replace the old file with the new file.
@@ -223,7 +227,7 @@ Update the app in the same way that you installed it.
 
 === "Windows"
 
-    1. Stop the daemon: press Ctrl+C in its terminal.
+    1. Stop the daemon: click **Stop daemon** on the web page.
     2. Download the new `gh-inbox-windows.exe` from the
        [latest release](https://github.com/florence-bockting/gh-inbox/releases/latest).
     3. Replace the old file with the new file.
@@ -237,7 +241,7 @@ Update the app in the same way that you installed it.
 
 === "Linux"
 
-    1. Stop the daemon: press Ctrl+C in its terminal.
+    1. Stop the daemon: click **Stop daemon** on the web page.
     2. Get the list of releases:
 
         ```bash
@@ -264,7 +268,7 @@ Update the app in the same way that you installed it.
 
 === "macOS"
 
-    1. Stop the daemon: press Ctrl+C in its terminal.
+    1. Stop the daemon: click **Stop daemon** on the web page.
     2. Get the list of releases:
 
         ```bash
@@ -291,7 +295,7 @@ Update the app in the same way that you installed it.
 
 === "Windows"
 
-    1. Stop the daemon: press Ctrl+C in its terminal.
+    1. Stop the daemon: click **Stop daemon** on the web page.
     2. Get the list of releases:
 
         ```powershell

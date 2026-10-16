@@ -36,6 +36,20 @@ def test_bad_host(client):
     assert r.json == {"error": "bad host"}
 
 
+def test_stop(client):
+    calls = []
+    client.application.config["STOP"] = lambda: calls.append(1)
+    r = post(client, "/api/stop")
+    assert r.json == {"ok": True}
+    assert calls == []
+    r.close()
+    assert calls == [1]
+
+
+def test_stop_without_server(client):
+    assert post(client, "/api/stop").status_code == 400
+
+
 def test_post_without_header(client):
     r = client.post("/api/items/all-done", json={"category": "action"})
     assert r.status_code == 403
