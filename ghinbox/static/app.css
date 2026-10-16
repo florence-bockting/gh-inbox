@@ -89,6 +89,8 @@ button.primary { background: var(--accent); color: var(--on-accent); border-colo
             border-radius: 8px; padding: 16px; }
 .settings .help { color: var(--muted); font-size: 12px; }
 .settings-note { color: var(--muted); margin: 12px 2px; }
+.settings-actions { display: flex; gap: 8px; align-items: center; margin: 12px 0 0; }
+button.btn:disabled { opacity: 0.5; cursor: default; }
 .settings-note.error { color: var(--warn); }
 .error { color: var(--warn); margin: 8px 0; }
 #banner:empty { display: none; }

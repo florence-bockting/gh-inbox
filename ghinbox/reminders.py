@@ -1,11 +1,14 @@
 """Desktop pop-ups for new action items, to-dos, reminders, and stalled work."""
 
+import time
 from datetime import datetime, timedelta, timezone
 
 from . import db, osdeps
 
 # More pop-ups than this in one round become one summary pop-up.
 MAX_POPUPS = 5
+# GNOME does not show every banner when pop-ups come too fast.
+POPUP_GAP_SECONDS = 2
 
 LABELS = {
     "review_requested": "Review requested",
@@ -13,6 +16,19 @@ LABELS = {
     "todo": "Your to-do",
     "team_mention": "Your team was mentioned",
     "assign": "You were assigned",
+}
+
+# An emoji at the start of the title shows what the pop-up is about.
+ICONS = {
+    "review_requested": "🔍",
+    "mention": "💬",
+    "todo": "✅",
+    "team_mention": "👥",
+    "assign": "📌",
+    "waiting": "⏳",
+    "stalled": "💤",
+    "summary": "📬",
+    "rate": "⚠️",
 }
 
 
@@ -41,16 +57,20 @@ def due(conn):
 def _message(row):
     ref = f"{row['repo']}#{row['number']}" if row["number"] else row["repo"]
     if row["tab"] == "mine" and row["waiting_for"]:
+        icon = ICONS["waiting"]
         title = "Review overdue: @" + row["waiting_for"].replace(", ", ", @")
     elif row["tab"] == "mine":
+        icon = ICONS["stalled"]
         title = "Stalled: no activity on your " + ("PR" if row["kind"] == "pr" else "issue")
     elif row["tab"] == "todo":
+        icon = ICONS["todo"]
         title = LABELS["todo"]
     else:
+        icon = ICONS.get(row["reason"], "🔔")
         title = LABELS.get(row["reason"], "Needs your action")
     if row["notify_count"] > 0:
         title = f"Reminder {row['notify_count']}: {title}"
-    return title, f"{ref}\n{row['title']}"
+    return f"{icon} {title}", f"{ref}\n{row['title']}"
 
 
 def rate_warning(conn):
@@ -62,7 +82,7 @@ def rate_warning(conn):
     db.set_meta(conn, "rate_warned", str(rate["reset"]))
     if db.get_setting(conn, "notify", float):
         osdeps.notify(
-            "gh-inbox: few API requests left",
+            f"{ICONS['rate']} gh-inbox: few API requests left",
             f"{rate['remaining']} of {rate['limit']} left until {rate['reset_clock']}. "
             "Watch fewer repos or sync less often.", urgent=True)
 
@@ -74,10 +94,12 @@ def run(conn):
         return 0
     if db.get_setting(conn, "notify", float):
         if len(rows) > MAX_POPUPS:
-            osdeps.notify(f"gh-inbox: {len(rows)} items need you",
+            osdeps.notify(f"{ICONS['summary']} gh-inbox: {len(rows)} items need you",
                           "Open the app to see them.", urgent=any(r["notify_count"] for r in rows))
         else:
-            for row in rows:
+            for i, row in enumerate(rows):
+                if i:
+                    time.sleep(POPUP_GAP_SECONDS)
                 title, body = _message(row)
                 osdeps.notify(title, body, urgent=row["notify_count"] > 0)
     now = db.now_iso()

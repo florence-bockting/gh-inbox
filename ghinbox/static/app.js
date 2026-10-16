@@ -233,6 +233,10 @@ function renderSettings() {
     <label for="set-notes_file">Notes file</label>
     <input type="text" class="wide" id="set-notes_file" data-setting="notes_file" value="${esc(s.notes_file)}">
     <span></span><span class="help wide">The CSV file with your notes. A change moves the file. The app refuses if a file exists at the new path.</span>
+  </div><div class="settings-actions">
+    <button class="btn primary" id="applySettings" disabled>Apply</button>
+    <button class="btn" id="resetSettings">Reset to defaults</button>
+    <span class="help" id="setNote"></span>
   </div><div class="error" id="setError"></div>
   <p class="settings-note ${status.estimate_per_hour > 0.8 * limit ? "error" : ""}">
     API use: at most about <b>${status.estimate_per_hour}</b> requests each hour
@@ -240,6 +244,33 @@ function renderSettings() {
     ${status.last_sync_cost != null ? `The last sync used ${esc(status.last_sync_cost)}.` : ""}
     Unchanged repos cost nothing, because GitHub does not count an ETag answer "304".
   </p>`;
+}
+
+// The settings whose input differs from the saved value.
+function changedSettings() {
+  const out = {};
+  for (const el of document.querySelectorAll("[data-setting]")) {
+    if (el.value !== String(status.settings[el.dataset.setting])) out[el.dataset.setting] = el.value;
+  }
+  return out;
+}
+
+function updateApply() {
+  $("#applySettings").disabled = !Object.keys(changedSettings()).length;
+  $("#setNote").textContent = "";
+}
+
+async function applySettings() {
+  try {
+    await post("/api/settings", changedSettings());
+    await render();
+    $("#setNote").textContent = "Applied.";
+  } catch (err) {
+    // Keep the inputs. Compare them with what the server saved before the error.
+    status = await get("/api/status");
+    updateApply();
+    $("#setError").textContent = err.message;
+  }
 }
 
 async function render() {
@@ -294,6 +325,11 @@ document.addEventListener("click", async (e) => {
     try { await post("/api/repos/load"); render(); }
     catch (err) { $("#repoError").textContent = err.message; t.disabled = false; }
   }
+  if (t.id === "resetSettings") {
+    for (const el of document.querySelectorAll("[data-setting]")) el.value = status.defaults[el.dataset.setting];
+    return updateApply();
+  }
+  if (t.id === "applySettings") return applySettings();
   if (t.id === "sync") {
     t.disabled = true; t.textContent = "Syncing…";
     try { const r = await post("/api/sync"); if (r.result !== "ok") alert("Sync: " + r.result); }
@@ -311,7 +347,6 @@ document.addEventListener("change", async (e) => {
       if (!t.value) return;
       await post("/api/items/move", {key: t.dataset.move, category: t.dataset.cat, to: t.value});
     }
-    else if (t.dataset.setting) await post("/api/settings", {[t.dataset.setting]: t.value});
     else if (t.id === "showDone") return render();
     else if (t.dataset.ffield) { filters[tab][t.dataset.ffield] = t.value; return render(); }
     else if (t.id === "hideStalled") { hideStalled = t.checked; return render(); }
@@ -337,6 +372,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 document.addEventListener("input", (e) => {
+  if (e.target.dataset.setting) return updateApply();
   if (e.target.id !== "repoFilter") return;
   const q = e.target.value.toLowerCase();
   document.querySelectorAll("#repoList .row").forEach((r) => {
@@ -347,5 +383,6 @@ document.addEventListener("input", (e) => {
 render();
 // Refresh from the local database every 30 s. This makes no GitHub request.
 setInterval(() => {
-  if (!document.querySelector("input:focus, select:focus, textarea:focus, .note-edit:not([hidden])")) render();
+  if (!document.querySelector("input:focus, select:focus, textarea:focus, .note-edit:not([hidden])")
+      && !Object.keys(changedSettings()).length) render();
 }, 30000);

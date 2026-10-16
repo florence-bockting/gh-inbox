@@ -64,6 +64,7 @@ def status(conn):
         "poller_running": running,
         "counts": db.counts(conn),
         "settings": {k: db.get_setting(conn, k) for k in db.DEFAULT_SETTINGS},
+        "defaults": db.DEFAULT_SETTINGS,
         "watched": len(db.watched_repos(conn)),
         "rate": sync.rate_status(conn),
         "estimate_per_hour": sync.estimate_per_hour(conn),
