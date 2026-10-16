@@ -5,35 +5,27 @@ You can use gh-inbox in two ways:
 - In your browser, on a local web page.
 - In your terminal, with a text interface.
 
+!!! note "The command name"
+    This page writes `gh-inbox`. You get this command when you
+    [install from the source](install.md#install-from-the-source).
+    If you use the [executable](install.md#download-the-executable), type the file name
+    instead. Run the command in the folder that contains the file.
+
+    | System | Command | Example |
+    | :-- | :-- | :-- |
+    | Linux | `./gh-inbox-linux` | `./gh-inbox-linux stop` |
+    | macOS | `./gh-inbox-macos` | `./gh-inbox-macos stop` |
+    | Windows | `.\gh-inbox-win.exe` | `.\gh-inbox-win.exe stop` |
+
 ## Start the app
 
 === "In the browser"
 
-    Open the web page:
+    To open the web page, run this command in a terminal. On Windows, use PowerShell.
 
-    === "Linux"
-
-        Run this command in a terminal:
-
-        ```bash
-        gh-inbox web
-        ```
-
-    === "macOS"
-
-        Run this command in a terminal:
-
-        ```bash
-        gh-inbox web
-        ```
-
-    === "Windows"
-
-        Run this command in PowerShell:
-
-        ```powershell
-        gh-inbox.exe web
-        ```
+    ```bash
+    gh-inbox web
+    ```
 
     The command opens http://127.0.0.1:8765 in your browser.
 
@@ -55,31 +47,11 @@ You can use gh-inbox in two ways:
 
 === "In the terminal"
 
-    Open the terminal UI:
+    To open the terminal UI, run this command in a terminal. On Windows, use PowerShell.
 
-    === "Linux"
-
-        Run this command in a terminal:
-
-        ```bash
-        gh-inbox tui
-        ```
-
-    === "macOS"
-
-        Run this command in a terminal:
-
-        ```bash
-        gh-inbox tui
-        ```
-
-    === "Windows"
-
-        Run this command in PowerShell:
-
-        ```powershell
-        gh-inbox.exe tui
-        ```
+    ```bash
+    gh-inbox tui
+    ```
 
     <figure markdown>
     ![The terminal UI of gh-inbox](icons/terminal-app.png)
@@ -176,38 +148,14 @@ When the daemon runs again, the open page reloads.
 Run these commands in a terminal on Linux and macOS, or in PowerShell on Windows.
 To get the `gh-inbox` command, see [Install](install.md).
 
-=== "Linux"
-
-    | Command | What it does |
-    | :-- | :-- |
-    | `gh-inbox daemon` | Starts the background process. Only one can run. |
-    | `gh-inbox web` | Opens the web page. Starts the daemon in the background if it does not run. |
-    | `gh-inbox stop` | Stops the daemon |
-    | `gh-inbox tui` | Opens the terminal UI |
-    | `gh-inbox sync` | Runs one sync now |
-    | `gh-inbox test-popup` | Sends 2 test pop-ups |
-
-=== "macOS"
-
-    | Command | What it does |
-    | :-- | :-- |
-    | `gh-inbox daemon` | Starts the background process. Only one can run. |
-    | `gh-inbox web` | Opens the web page. Starts the daemon in the background if it does not run. |
-    | `gh-inbox stop` | Stops the daemon |
-    | `gh-inbox tui` | Opens the terminal UI |
-    | `gh-inbox sync` | Runs one sync now |
-    | `gh-inbox test-popup` | Sends 2 test pop-ups |
-
-=== "Windows"
-
-    | Command | What it does |
-    | :-- | :-- |
-    | `gh-inbox.exe daemon` | Starts the background process. Only one can run. |
-    | `gh-inbox.exe web` | Opens the web page. Starts the daemon in the background if it does not run. |
-    | `gh-inbox.exe stop` | Stops the daemon |
-    | `gh-inbox.exe tui` | Opens the terminal UI |
-    | `gh-inbox.exe sync` | Runs one sync now |
-    | `gh-inbox.exe test-popup` | Sends 2 test pop-ups |
+| Command | What it does |
+| :-- | :-- |
+| `gh-inbox daemon` | Starts the background process. Only one can run. |
+| `gh-inbox web` | Opens the web page. Starts the daemon in the background if it does not run. |
+| `gh-inbox stop` | Stops the daemon |
+| `gh-inbox tui` | Opens the terminal UI |
+| `gh-inbox sync` | Runs one sync now |
+| `gh-inbox test-popup` | Sends 2 test pop-ups |
 
 ## How your inbox is organized
 

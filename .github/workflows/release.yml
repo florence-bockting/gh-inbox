@@ -60,7 +60,7 @@ jobs:
           - os: ubuntu-latest
             asset: gh-inbox-linux
           - os: windows-latest
-            asset: gh-inbox-windows.exe
+            asset: gh-inbox-win.exe
           - os: macos-latest
             asset: gh-inbox-macos
     runs-on: ${{ matrix.os }}

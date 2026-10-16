@@ -85,81 +85,44 @@ This way needs no Python.
 
 === "Windows"
 
-    1. Download `gh-inbox-windows.exe` from the
+    1. Download `gh-inbox-win.exe` from the
        [latest release](https://github.com/florence-bockting/gh-inbox/releases/latest).
     2. Start the app:
 
         ```powershell
-        .\gh-inbox-windows.exe web
+        .\gh-inbox-win.exe web
         ```
 
     The file has no signature. Windows shows a warning the first time.
     Click **More info**, then **Run anyway**.
 
+The command starts the [daemon](usage.md#basic-commands) and opens http://127.0.0.1:8765 in your browser.
+The daemon runs in the background. You can close the terminal.
+To stop the daemon, click **Stop daemon** on the web page, or run the file with `stop`,
+for example `./gh-inbox-linux stop`.
+
 ### Install from the source
 
-=== "Linux"
+Run these commands in a terminal. On Windows, use PowerShell.
 
-    1. Get the code:
+1. Get the code:
 
-        ```bash
-        git clone https://github.com/florence-bockting/gh-inbox.git
-        cd gh-inbox
-        ```
+    ```bash
+    git clone https://github.com/florence-bockting/gh-inbox.git
+    cd gh-inbox
+    ```
 
-    2. Install the app with `uv`. This also installs Flask and Textual.
+2. Install the app with `uv`. This also installs Flask and Textual.
 
-        ```bash
-        uv tool install .
-        ```
+    ```bash
+    uv tool install .
+    ```
 
-    3. Start the app:
+3. Start the app:
 
-        ```bash
-        gh-inbox web
-        ```
-
-=== "macOS"
-
-    1. Get the code:
-
-        ```bash
-        git clone https://github.com/florence-bockting/gh-inbox.git
-        cd gh-inbox
-        ```
-
-    2. Install the app with `uv`. This also installs Flask and Textual.
-
-        ```bash
-        uv tool install .
-        ```
-
-    3. Start the app:
-
-        ```bash
-        gh-inbox web
-        ```
-
-=== "Windows"
-
-    1. Get the code:
-
-        ```powershell
-        git clone https://github.com/florence-bockting/gh-inbox.git
-        cd gh-inbox
-        ```
-
-    2. Install the app with `uv`. This also installs Flask and Textual.
-
-        ```powershell
-        uv tool install .
-        ```
-
-    3. Start the app:
-
-        ```powershell
-        gh-inbox web
-        ```
+    ```bash
+    gh-inbox web
+    ```
 
 `uv` installs the app in its own environment. It puts the `gh-inbox` command in your `PATH`.
 If your shell does not find `gh-inbox`, run `uv tool update-shell`. Then open a new terminal.
@@ -228,97 +191,43 @@ Update the app in the same way that you installed it.
 === "Windows"
 
     1. Stop the daemon: click **Stop daemon** on the web page.
-    2. Download the new `gh-inbox-windows.exe` from the
+    2. Download the new `gh-inbox-win.exe` from the
        [latest release](https://github.com/florence-bockting/gh-inbox/releases/latest).
     3. Replace the old file with the new file.
     4. Start the app again:
 
         ```powershell
-        .\gh-inbox-windows.exe web
+        .\gh-inbox-win.exe web
         ```
 
 ### Update an install from the source
 
-=== "Linux"
+Run these commands in a terminal. On Windows, use PowerShell.
 
-    1. Stop the daemon: click **Stop daemon** on the web page.
-    2. Get the list of releases:
+1. Stop the daemon: click **Stop daemon** on the web page.
+2. Get the list of releases:
 
-        ```bash
-        git fetch --tags
-        ```
+    ```bash
+    git fetch --tags
+    ```
 
-    3. Change to the new release. Replace `v0.1.0` with the release name:
+3. Change to the new release. Replace `v0.1.0` with the release name:
 
-        ```bash
-        git checkout v0.1.0
-        ```
+    ```bash
+    git checkout v0.1.0
+    ```
 
-    4. Install again. A new release can add dependencies:
+4. Install again. A new release can add dependencies:
 
-        ```bash
-        uv tool install --force .
-        ```
+    ```bash
+    uv tool install --force .
+    ```
 
-    5. Start the app again:
+5. Start the app again:
 
-        ```bash
-        gh-inbox web
-        ```
-
-=== "macOS"
-
-    1. Stop the daemon: click **Stop daemon** on the web page.
-    2. Get the list of releases:
-
-        ```bash
-        git fetch --tags
-        ```
-
-    3. Change to the new release. Replace `v0.1.0` with the release name:
-
-        ```bash
-        git checkout v0.1.0
-        ```
-
-    4. Install again. A new release can add dependencies:
-
-        ```bash
-        uv tool install --force .
-        ```
-
-    5. Start the app again:
-
-        ```bash
-        gh-inbox web
-        ```
-
-=== "Windows"
-
-    1. Stop the daemon: click **Stop daemon** on the web page.
-    2. Get the list of releases:
-
-        ```powershell
-        git fetch --tags
-        ```
-
-    3. Change to the new release. Replace `v0.1.0` with the release name:
-
-        ```powershell
-        git checkout v0.1.0
-        ```
-
-    4. Install again. A new release can add dependencies:
-
-        ```powershell
-        uv tool install --force .
-        ```
-
-    5. Start the app again:
-
-        ```powershell
-        gh-inbox web
-        ```
+    ```bash
+    gh-inbox web
+    ```
 
 !!! tip "Get the newest code before a release"
     The newest code can contain changes that are not in a release yet.

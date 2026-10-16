@@ -73,9 +73,12 @@ def start_daemon(err_path):
         kwargs = {"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
     else:
         kwargs = {"start_new_session": True}
+    # The PyInstaller executable deletes its unpacked files when it exits. The daemon must
+    # unpack its own copy, not use the copy of this process.
+    env = dict(os.environ, PYINSTALLER_RESET_ENVIRONMENT="1")
     with open(err_path, "ab") as err:
         subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                         stderr=err, **kwargs)
+                         stderr=err, env=env, **kwargs)
 
 
 # ---- one sync at a time -----------------------------------------------------

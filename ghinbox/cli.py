@@ -51,7 +51,9 @@ def cmd_web():
         else:
             raise SystemExit(f"The daemon did not start. See {err}")
         print("The daemon runs in the background. You can close the terminal.")
-        print("To stop it, run: gh-inbox stop")
+        # The executable has its own file name, for example ./gh-inbox-linux.
+        name = sys.argv[0] if getattr(sys, "frozen", False) else "gh-inbox"
+        print(f"To stop it, run: {name} stop")
     _open_browser(url)
 
 
