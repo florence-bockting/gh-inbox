@@ -77,7 +77,7 @@ A repo name must tell its forge. GitHub has "owner/repo". Another forge has
 
 The table `items` has the primary key `(key, category)`. One issue can be in
 Action and in My work at the same time. A sync changes only the fields.
-Your own values stay: done, reminder interval, stall time, priority and tab.
+Your own values stay: done, reminder interval, stall time, pin and tab.
 
 ## Rules
 

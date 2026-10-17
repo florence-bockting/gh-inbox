@@ -68,8 +68,8 @@ wait, I work on other things. I forget the waiting pull requests. The reviewer
 can also forget them. Then nothing happens.
 
 **Solution:** The **My work** tab reminds me after N days without a review. The
-pull request shows "review overdue". A pop-up comes. I can then tag the reviewer
-again.
+pull request shows "review overdue". It gets a pin at the top of the list. A
+pop-up comes. I can then tag the reviewer again.
 
 ![A pull request with the tag "review overdue"](screenshots/overdue-review.png)
 

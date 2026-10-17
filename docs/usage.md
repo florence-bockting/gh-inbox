@@ -37,13 +37,29 @@ You can use oss-inbox in two ways:
 
     | Icon | Meaning |
     | :-- | :-- |
-    | ☆ / ★ | Give the item high priority, or remove it |
+    | ⚐ / ⚑ | Pin the item to the top, or unpin it |
     | ![done](icons/done.svg){ height="16" } | Mark the item done |
     | ![undo](icons/undo.svg){ height="16" } | Undo done |
     | ![note](icons/note.svg){ height="16" } | Add or edit a note. The icon is blue when the item has a note. |
     | ![more](icons/more.svg){ height="16" } | Show more options: reminder, stall time and **Move to…** |
     | ![reminder](icons/reminder.svg){ height="16" } | Remind me every N hours (behind ![more](icons/more.svg){ height="16" }) |
     | ![stall](icons/stall.svg){ height="16" } | Stalled after N days, in My work (behind ![more](icons/more.svg){ height="16" }) |
+
+    Keys in the web page:
+
+    | Key | Action |
+    | :-- | :-- |
+    | `j` / `k` | Go to the next or previous item |
+    | `e` | Mark the item done, or undo done |
+    | `s` | Pin the item to the top, or unpin it |
+    | `x` | [Select](#select-several-items) the item, or unselect it |
+    | `u` | [Undo](#undo-an-action) the last action |
+    | `?` | Show the list of keys |
+    | `←` / `→` | Go to the previous or next tab, when a tab has the focus |
+
+    The keys do nothing while you type in a field. To turn them off, clear
+    **Keyboard shortcuts** in the **Settings** tab. Your browser keeps this
+    setting, not the app.
 
 === "In the terminal"
 
@@ -68,7 +84,7 @@ You can use oss-inbox in two ways:
     | `r` | Set the reminder interval of the item |
     | `s` | Set the stall time of the item (My work) |
     | `m` | Move the item to another tab |
-    | `p` | Give the item high priority, or remove it |
+    | `p` | Pin the item to the top, or unpin it |
     | `f` / `x` | Go to the filters / clear the filters |
     | `t` | Hide stalled items (My work) |
     | `w` | Show only the PRs with an overdue review (My work) |
@@ -103,6 +119,13 @@ Do steps 1 to 3 once, after the first start. Then the inbox fills up. Do step 4 
 
 2. **Check the settings.** Open the **Settings** tab. Keep the
    [default settings](#default-settings), or change them.
+
+    The tab has three sections:
+
+    - **GitHub:** the account, the server and the [API use](#github-api-use).
+      The app uses the login of the GitHub CLI. To log in, run `gh auth login`.
+    - **Codeberg:** the account, the server and the [token](#codeberg).
+    - **General:** the other settings.
 
     === "In the browser"
 
@@ -170,7 +193,7 @@ An item is one issue or PR in a tab.
 | **My work** | Your open issues and PRs in all repos. An item is "stalled" when it has no activity for N days. A PR shows "in review" while a review is pending, and "review overdue" after N days. See [Default settings](#default-settings) for N. |
 | **ToDo** | Your own tasks: issues and PRs where you [mention yourself](#get-reminders), in the repos that you watch. You can also [move any item](#move-an-item-to-another-tab) here. |
 | **Repos** | The repos that you watch in this app |
-| **Settings** | Stall time, review wait, reminder interval, sync interval, pop-ups and the notes file. See [Default settings](#default-settings). |
+| **Settings** | The GitHub and Codeberg accounts. Stall time, review wait, reminder interval, sync interval, pop-ups and the notes file. See [Default settings](#default-settings). |
 
 Each item has a **PR**, **Issue** or **Draft PR** label. In Action, an item
 can have a **mention** tag and an **assigned** tag at the same time. The two tags
@@ -182,7 +205,7 @@ only the PRs with an overdue review.
 
 Items are **ordered** by default according to recency with the most recent item
 coming first. This order can be changed from "Newest first" to "Oldest first".
-Exceptions are [stalled](#track-stalled-items) and [prioritized](#set-the-priority) items.
+Exceptions are [stalled](#track-stalled-items) and [pinned](#pin-an-item) items.
 
 ### How the item status updates
 
@@ -250,15 +273,44 @@ can change any time.
 | Watch history (days) | 14 |
 | Pop-ups on (1) / off (0) | 1 |
 | Notes file | `~/oss-inbox/notes.csv` |
-| Codeberg URL | `https://codeberg.org` |
+| Codeberg server | `https://codeberg.org` |
+| Keyboard shortcuts (web page) | on |
 
 ## Work with items
 
-### Set the priority
+### Pin an item
 
-- Click ☆ on an item, or press `p` in the terminal UI to prioritize an item.
-  High-priority items come first in the list.
-- Click ★, or press `p` again, to remove the high priority.
+- Click ⚐ on an item to pin it. Or press `s` in the web page, or `p` in the
+  terminal UI. Pinned items come first in the list.
+- Click the red ⚑, or press the key again, to unpin the item.
+- A PR with a new overdue review gets a pin automatically. Only you remove it.
+- In the web page, a pinned item has a colored background. In the terminal UI,
+  it has a red ⚑ and an orange title.
+
+### Select several items
+
+In the web page, you can act on several items at the same time.
+
+1. Select the check box of each item. Or press `x` on the item.
+2. Click **Mark done**. Or select a tab in **Move to…**.
+
+**Clear selection** unselects all items. A filter that hides an item also
+unselects it. A bulk action applies only to the items that you can see.
+
+### Undo an action
+
+In the web page, a message at the bottom confirms an action. These actions have
+an **Undo** button:
+
+- Mark an item done.
+- Move an item to another tab.
+- Mark done or move the [selected items](#select-several-items).
+- **Mark all done** in Watch. This also includes the items that a filter hides.
+
+Click **Undo**, or press `u`. The message closes after 8 seconds. Move the mouse
+on it to keep it open.
+
+An error shows in a bar at the top. The bar stays until you click **Close**.
 
 ### Move an item to another tab
 
@@ -311,8 +363,11 @@ The app also syncs Codeberg when you save a Codeberg access token.
 1. On Codeberg, open https://codeberg.org/user/settings/applications.
 2. Create a token with read access to **notification**, **issue**, **repository** and **user**.
 3. In the app, open the **Settings** tab.
-4. Paste the token in **Codeberg token**. Then click **Save token**.
-   In the terminal UI, select **Codeberg token** and press `Enter`.
+4. In the **Codeberg** section, paste the token in **Login**. Then click
+   **Save token**. In the terminal UI, select **Login** under **Codeberg**.
+   Then press `e`.
+
+The **Account** row then shows "Connected as @your-login".
 
 The app saves the token in `~/.local/share/oss-inbox/forgejo.token`. Only you can
 read this file. The app never shows the token again.
@@ -338,7 +393,8 @@ These GitHub features do not work for Codeberg yet:
 - "In review" and "review overdue" on your PRs.
 - New issues and PRs in watched repos without a notification.
 
-To use another Forgejo server, change **Codeberg URL** in the settings.
+To use another Forgejo server, change **Server** in the **Codeberg** section of
+the settings. In the web page, click **Apply** to save it.
 
 ## GitHub API use
 
@@ -354,8 +410,8 @@ answer "304 Not Modified".
 - Below 10% of the limit, the sync pauses. It starts again when GitHub resets
   the limit. The status bar shows the time.
 
-The **Settings** tab shows the most requests that the app can use in one hour
-with your watched repos. It also shows the cost of the last sync.
+The **GitHub** section of the **Settings** tab shows the most requests that the
+app can use in one hour with your watched repos. It also shows the cost of the last sync.
 
 To use fewer requests, watch fewer repos, or increase "Sync every (minutes)".
 See [Default settings](#default-settings).
