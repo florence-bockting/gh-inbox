@@ -14,9 +14,24 @@
   <label><input type="checkbox" id="showDone"> Show done</label>
   <span class="status" id="status"></span>
 </header>
-<nav id="tabs"></nav>
+<nav id="tabs" role="tablist" aria-label="Views"></nav>
 <div id="banner"></div>
+<div id="errors" role="alert"></div>
 <main id="main"></main>
+<div id="toast" role="status"></div>
+<dialog id="help" aria-labelledby="helpTitle">
+  <h2 id="helpTitle">Keyboard shortcuts</h2>
+  <dl>
+    <dt><kbd>j</kbd> / <kbd>k</kbd></dt><dd>Next or previous row</dd>
+    <dt><kbd>e</kbd></dt><dd>Mark done, or undo done</dd>
+    <dt><kbd>s</kbd></dt><dd>Pin or unpin the row</dd>
+    <dt><kbd>x</kbd></dt><dd>Select or unselect the row</dd>
+    <dt><kbd>u</kbd></dt><dd>Undo the last action</dd>
+    <dt><kbd>?</kbd></dt><dd>Show this list</dd>
+  </dl>
+  <p>Settings can turn the shortcuts off.</p>
+  <form method="dialog"><button class="btn">Close</button></form>
+</dialog>
 
 <script src="/static/app.js"></script>
 </body>

@@ -60,8 +60,12 @@ let filters = {action: {}, watch: {}, mine: {}, todo: {}};
 let hideStalled = false;
 let onlyWaiting = false;
 const openMenus = new Set();  // "key|category" of the rows with open options
+const selected = new Set();  // "key|category" of the selected rows
 let oldest = {action: false, watch: false, mine: false, todo: false};
 let status = {};
+let lastItems = [];  // The items of the tab, before the filters
+let toastUndo = null;
+let toastTimer;
 
 const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
@@ -89,10 +93,71 @@ function ago(iso) {
   return Math.round(s / 86400) + " d ago";
 }
 
+const tabLabel = (id) => TABS.find(([i]) => i === id)[1];
+const moveOptions = (from) => TABS.slice(0, 4).filter(([id]) => id !== from)
+  .map(([id, label]) => `<option value="${id}">${label}</option>`).join("");
+// "key|category". The key can contain "|", the category cannot.
+const splitId = (id) => { const i = id.lastIndexOf("|"); return [id.slice(0, i), id.slice(i + 1)]; };
+
+// A message at the bottom of the page. With `undo`, it has an Undo button.
+// It closes after 8 s. The pointer or the focus on it stops the time.
+function showToast(text, undo) {
+  clearTimeout(toastTimer);
+  toastUndo = undo || null;
+  $("#toast").innerHTML = `<span>${esc(text)}</span>` +
+    (undo ? `<button class="btn" id="undo">Undo</button>` : "");
+  toastTimer = setTimeout(hideToast, 8000);
+}
+function hideToast() {
+  clearTimeout(toastTimer);
+  toastUndo = null;
+  $("#toast").innerHTML = "";
+}
+for (const ev of ["mouseenter", "focusin"])
+  $("#toast").addEventListener(ev, () => clearTimeout(toastTimer));
+for (const ev of ["mouseleave", "focusout"])
+  $("#toast").addEventListener(ev, () => { if (toastUndo) toastTimer = setTimeout(hideToast, 8000); });
+
+// The error stays until the user closes it. A render does not remove it.
+function showError(text) {
+  $("#errors").innerHTML = `<span>${esc(text)}</span><button class="btn" id="closeError">Close</button>`;
+}
+
+const shortcutsOn = () => { try { return localStorage.getItem("shortcuts") !== "off"; } catch { return true; } };
+
+// A render replaces the list. These two keep the focus on the same row and control.
+// If the row left the list, the focus goes to the row that took its place.
+function focusState() {
+  const el = document.activeElement;
+  if (!el || !el.closest || !el.closest("#main")) return null;
+  const row = el.closest(".row[data-row]");
+  if (!row) return el.id ? {selector: "#" + el.id}
+    : el.dataset.ffield ? {selector: `[data-ffield="${el.dataset.ffield}"]`} : null;
+  const rows = [...document.querySelectorAll(".row[data-row]")];
+  const control = ["done", "note", "more", "prio", "sel"].find((a) => el.dataset[a] !== undefined);
+  return {row: row.dataset.row, index: rows.indexOf(row), control};
+}
+function restoreFocus(state) {
+  if (!state) return;
+  if (state.selector) { const el = $(state.selector); if (el) el.focus(); return; }
+  const rows = [...document.querySelectorAll(".row[data-row]")];
+  const row = rows.find((r) => r.dataset.row === state.row) || rows[Math.min(state.index, rows.length - 1)];
+  if (!row) return;
+  (state.control && row.querySelector(`[data-${state.control}]`) || row).focus();
+}
+
+function setTab(id) {
+  tab = id;
+  location.hash = id;
+  selected.clear();
+  return render();
+}
+
 function renderTabs() {
   const c = status.counts || {};
   $("#tabs").innerHTML = TABS.map(([id, label]) =>
-    `<button data-tab="${id}" class="${id === tab ? "active" : ""}">${label}` +
+    `<button role="tab" data-tab="${id}" aria-selected="${id === tab}" tabindex="${id === tab ? 0 : -1}"
+      class="${id === tab ? "active" : ""}">${label}` +
     (c[id] ? `<span class="count">${c[id]}</span>` : "") + `</button>`).join("");
 }
 
@@ -125,7 +190,9 @@ function itemRow(it) {
     badges.push(`<span class="badge ${esc(it.reason)}">${esc(REASONS[it.reason] || it.reason)}</span>`);
   if (it.assigned && it.reason !== "assign")
     badges.push(`<span class="badge assign">${REASONS.assign}</span>`);
-  if (it.stalled) badges.push(`<span class="badge stalled">stalled</span>`);
+  // The meta line shows the secondary states. The title keeps only the main ones.
+  const metaBadges = [];
+  if (it.stalled) metaBadges.push(`<span class="badge stalled">stalled</span>`);
   if (it.review_waits) {
     // The tooltip names the reviewers and their wait time.
     const waits = JSON.parse(it.review_waits);
@@ -135,9 +202,9 @@ function itemRow(it) {
       ? `<span class="badge overdue" title="${esc(tip)}">review overdue</span>`
       : `<span class="badge in_review" title="${esc(tip)}">in review</span>`);
   }
-  if (it.activity) badges.push(`<span class="badge activity">new activity</span>`);
+  if (it.activity) metaBadges.push(`<span class="badge activity">new activity</span>`);
   if (["action", "todo"].includes(it.tab) && it.notify_count > 1)
-    badges.push(`<span class="badge reminded">reminded ${it.notify_count - 1}×</span>`);
+    metaBadges.push(`<span class="badge reminded">reminded ${it.notify_count - 1}×</span>`);
   if (it.state && !["open", "draft"].includes(it.state)) badges.push(`<span class="badge">${esc(it.state)}</span>`);
   const when = it.tab === "mine" ? "updated " + ago(it.updated_at) : ago(it.event_at);
   const key = esc(it.key), cat = esc(it.category);
@@ -157,8 +224,7 @@ function itemRow(it) {
       data-stall="${key}" value="${it.stall_days ?? ""}" placeholder="${status.settings.stall_days}"><label>d</label>`;
   }
   controls += `<select data-move="${key}" data-cat="${cat}"><option value="">Move to…</option>
-    ${TABS.slice(0, 4).filter(([id]) => id !== it.tab)
-      .map(([id, label]) => `<option value="${id}">${label}</option>`).join("")}</select>`;
+    ${moveOptions(it.tab)}</select>`;
   // The reminder, the stall time and the move hide behind the "more" button.
   const menu = esc(it.key + "|" + it.category);
   controls = `<span class="more" data-menu="${menu}" ${openMenus.has(it.key + "|" + it.category) ? "" : "hidden"}>${controls}</span>`;
@@ -170,12 +236,15 @@ function itemRow(it) {
   controls += `<button class="btn icon ${it.note ? "has-note" : ""}" data-note="${key}"
     title="${noteLabel}" aria-label="${noteLabel}">${ICONS.note}</button>`;
   controls += `<button class="btn icon" data-more="${menu}" title="More options" aria-label="More options">${ICONS.ellipsis}</button>`;
-  const starLabel = it.priority ? "Remove high priority" : "Mark as high priority";
-  const star = `<button class="star" data-prio="${key}" data-cat="${cat}" data-val="${it.priority ? 0 : 1}"
-    title="${starLabel}" aria-label="${starLabel}">${it.priority ? "★" : "☆"}</button>`;
-  return `<div class="row ${it.done ? "done" : ""} ${it.priority ? "high" : ""} ${it.waiting_for ? "overdue" : ""}">
-    <div><div class="title">${star}${badges.join("")}<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title)}</a></div>
-    <div class="meta">${forgeIcon(it.repo)}${esc(ref)} · ${it.author ? "by " + esc(it.author) + " · " : ""}${when}</div>
+  const flagLabel = it.priority ? "Unpin" : "Pin to the top";
+  const flag = `<button class="flag" data-prio="${key}" data-cat="${cat}" data-val="${it.priority ? 0 : 1}"
+    title="${flagLabel}" aria-label="${flagLabel}">${it.priority ? "⚑" : "⚐"}</button>`;
+  const check = `<label class="sel" title="Select"><input type="checkbox" data-sel="${menu}"
+    aria-label="Select" ${selected.has(it.key + "|" + it.category) ? "checked" : ""}></label>`;
+  return `<div class="row ${it.done ? "done" : ""} ${it.priority ? "high" : ""}"
+    data-row="${menu}" tabindex="-1">
+    <div><div class="title">${check}${flag}${badges.join("")}<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title)}</a></div>
+    <div class="meta">${forgeIcon(it.repo)}${esc(ref)} · ${it.author ? "by " + esc(it.author) + " · " : ""}${when}${metaBadges.join("")}</div>
     ${it.note ? `<div class="note" title="${esc(it.note)}">${esc(it.note)}</div>` : ""}</div>
     <div class="controls">${controls}</div>
     <div class="note-edit" data-editor="${key}" hidden>
@@ -185,13 +254,23 @@ function itemRow(it) {
 }
 
 async function renderItems() {
-  let items = await get(`/api/items?category=${tab}&done=${$("#showDone").checked ? 1 : 0}` +
-                        `&order=${oldest[tab] ? "asc" : "desc"}`);
-  let toolbar = "";
+  const items = await get(`/api/items?category=${tab}&done=${$("#showDone").checked ? 1 : 0}` +
+                          `&order=${oldest[tab] ? "asc" : "desc"}`);
+  lastItems = items;
   const fields = FILTER_FIELDS[tab] || [];
   const chosen = filters[tab] || {};
+  const shown = items.filter((i) => fields.every((f) => !chosen[f] || i[f] === chosen[f])
+    && !(tab === "mine" && hideStalled && i.stalled)
+    && !(tab === "mine" && onlyWaiting && !i.waiting_for));
+  // A bulk action applies only to the rows that the list shows.
+  const ids = new Set(shown.map((i) => i.key + "|" + i.category));
+  for (const id of [...selected]) if (!ids.has(id)) selected.delete(id);
+  let toolbar = !selected.size ? "" : `<span class="bulk"><b>${selected.size} selected</b>
+    <button class="btn" id="bulkDone">Mark done</button>
+    <select id="bulkMove" aria-label="Move the selected items"><option value="">Move to…</option>${moveOptions(tab)}</select>
+    <button class="btn" id="clearSel">Clear selection</button></span>`;
   // Offer only the values that occur in the current items. Keep the chosen one listed.
-  toolbar = fields.map((field) => {
+  toolbar += fields.map((field) => {
     const [all, label] = FIELD_LABELS[field];
     const values = [...new Set(items.map((i) => i[field]).filter(Boolean)
       .concat(chosen[field] ? [chosen[field]] : []))].sort();
@@ -206,13 +285,23 @@ async function renderItems() {
     toolbar += `<button class="btn" id="clearFilters">Clear filters</button>`;
   toolbar += `<button class="btn" id="order" title="Reverse the order">${oldest[tab] ? "↑ Oldest first" : "↓ Newest first"}</button>`;
   if (tab === "watch") toolbar += `<span class="grow"></span><button class="btn" id="allDone">Mark all done</button>`;
-  items = items.filter((i) => fields.every((f) => !chosen[f] || i[f] === chosen[f])
-    && !(tab === "mine" && hideStalled && i.stalled)
-    && !(tab === "mine" && onlyWaiting && !i.waiting_for));
   const hint = !status.watched && tab !== "mine"
     ? `<div class="empty">You watch no repos yet. Open the <b>Repos</b> tab and select some.</div>` : "";
+  const focus = focusState();
   $("#main").innerHTML = `<div class="toolbar">${toolbar}</div>` + (hint ||
-    `<div class="list">${items.map(itemRow).join("") || `<div class="empty">Nothing here.</div>`}</div>`);
+    `<div class="list">${shown.map(itemRow).join("") || `<div class="empty">Nothing here.</div>`}</div>`);
+  restoreFocus(focus);
+}
+
+// Run one action on each selected row. The toast offers to undo it.
+async function bulkApply(path, make, undo, message) {
+  const rows = [...selected].map(splitId);
+  selected.clear();
+  for (const [key, category] of rows) await post(path, make(key, category));
+  showToast(message(rows.length), async () => {
+    for (const [key, category] of rows) await post(path, undo(key, category));
+  });
+  return render();
 }
 
 async function renderRepos() {
@@ -235,37 +324,60 @@ function renderSettings() {
   const field = (key, label, help) => `<label for="set-${key}">${label}</label>
     <input type="number" min="0" step="any" id="set-${key}" data-setting="${key}" value="${esc(s[key])}">
     <span class="help">${help}</span>`;
-  $("#main").innerHTML = `<div class="settings">
+  // Each service has one card with the same rows: account, server, login.
+  const account = (icon, name, login, rows) => `<section class="account">
+    <h3>${icon}${name}</h3>
+    <div class="settings">
+      <span>Account</span>
+      <span class="wide ${login ? "connected" : "help"}">${login ? "Connected as @" + esc(login) : "Not connected"}</span>
+      ${rows}
+    </div></section>`;
+  $("#main").innerHTML = `<div class="accounts">
+    ${account(GITHUB_ICON, "GitHub", status.login, `
+      <span>Server</span><span class="wide">github.com</span>
+      <span>Login</span>
+      <span class="wide">Run <kbd>gh auth login</kbd> in a terminal.</span>
+      <span></span><span class="help wide">The app uses the login of the GitHub CLI. It does not save a GitHub token.</span>
+      <span>API use</span>
+      <span class="wide ${status.estimate_per_hour > 0.8 * limit ? "error" : "help"}">
+        At most about <b>${status.estimate_per_hour}</b> requests each hour
+        with ${status.watched} watched repos (limit ${limit}).
+        ${status.last_sync_cost != null ? `The last sync used ${esc(status.last_sync_cost)}.` : ""}
+        Unchanged repos cost nothing, because GitHub does not count an ETag answer "304".</span>`)}
+    ${account(codebergIcon("Codeberg"), "Codeberg", status.forgejo_login, `
+      <label for="set-forgejo_url">Server</label>
+      <input type="text" class="wide" id="set-forgejo_url" data-setting="forgejo_url" value="${esc(s.forgejo_url)}">
+      <span></span><span class="help wide">Codeberg, or another Forgejo server. Apply saves a change.</span>
+      <label for="forgejoToken">Login</label>
+      <span class="wide token"><input type="password" id="forgejoToken" autocomplete="off"
+        placeholder="${status.forgejo_token ? "token saved · type a new one to replace it" : "paste an access token"}">
+        <button class="btn" id="saveToken">Save token</button>
+        ${status.forgejo_token ? `<button class="btn" id="removeToken">Remove token</button>` : ""}</span>
+      <span></span><span class="help wide">Create the token on the server under Settings → Applications.
+        Give it read access to notification, issue, repository and user.
+        The app saves it in a file that only you can read. Without a token, the app syncs GitHub only.</span>
+      <span></span><span class="wide"><span class="help" id="tokenNote"></span><span class="error" id="tokenError"></span></span>`)}
+  </div>
+  <h3 class="settings-title">General</h3>
+  <div class="settings">
     ${field("stall_days", "Stalled after (days)", "Your issue or PR counts as stalled after this many days without activity. Each item can override it. 0 turns it off.")}
     ${field("review_wait_days", "Review wait (days)", "Your PR shows \"in review\" while a review is pending, and \"review overdue\" after this many days. A new request, or your comment that tags @x, starts the time again. 0 turns it off.")}
     ${field("default_remind_hours", "Remind every (hours)", "Default reminder interval for new action items. Each item can override it. 0 turns reminders off.")}
-    ${field("poll_minutes", "Sync every (minutes)", "How often the poller asks GitHub for changes.")}
+    ${field("poll_minutes", "Sync every (minutes)", "How often the poller asks GitHub and Codeberg for changes.")}
     ${field("new_item_days", "Watch history (days)", "When you start to watch a repo, show its issues and PRs from this many days back.")}
     ${field("notify", "Pop-ups on (1) or off (0)", "Desktop pop-ups from the poller.")}
     <label for="set-notes_file">Notes file</label>
     <input type="text" class="wide" id="set-notes_file" data-setting="notes_file" value="${esc(s.notes_file)}">
     <span></span><span class="help wide">The CSV file with your notes. A change moves the file. The app refuses if a file exists at the new path.</span>
-    <label for="set-forgejo_url">Codeberg URL</label>
-    <input type="text" class="wide" id="set-forgejo_url" data-setting="forgejo_url" value="${esc(s.forgejo_url)}">
-    <span></span><span class="help wide">Codeberg, or another Forgejo server.</span>
-    <label for="forgejoToken">Codeberg token</label>
-    <span class="wide"><input type="password" id="forgejoToken" autocomplete="off"
-      placeholder="${status.forgejo_token ? "saved · type a new token to replace it" : "not set"}">
-      <button class="btn" id="saveToken">Save token</button>
-      ${status.forgejo_token ? `<button class="btn" id="removeToken">Remove token</button>` : ""}</span>
-    <span></span><span class="help wide">An access token with read access to notification, issue, repository and user.
-      The app saves it in a file that only you can read. Without a token, the app syncs GitHub only.</span>
+    <label for="shortcutsOn">Keyboard shortcuts</label>
+    <span><input type="checkbox" id="shortcutsOn" ${shortcutsOn() ? "checked" : ""}></span>
+    <span class="help">Single keys: j and k move between rows. Press ? for the list.
+      The change applies at once. This browser keeps it, not the app.</span>
   </div><div class="settings-actions">
     <button class="btn primary" id="applySettings" disabled>Apply</button>
     <button class="btn" id="resetSettings">Reset to defaults</button>
     <span class="help" id="setNote"></span>
-  </div><div class="error" id="setError"></div>
-  <p class="settings-note ${status.estimate_per_hour > 0.8 * limit ? "error" : ""}">
-    API use: at most about <b>${status.estimate_per_hour}</b> requests each hour
-    with ${status.watched} watched repos (limit ${limit}).
-    ${status.last_sync_cost != null ? `The last sync used ${esc(status.last_sync_cost)}.` : ""}
-    Unchanged repos cost nothing, because GitHub does not count an ETag answer "304".
-  </p>`;
+  </div><div class="error" id="setError"></div>`;
 }
 
 // The settings whose input differs from the saved value.
@@ -304,9 +416,24 @@ async function render() {
   return renderItems();
 }
 
-document.addEventListener("click", async (e) => {
+document.addEventListener("click", (e) => onClick(e).catch((err) => showError(err.message)));
+
+async function onClick(e) {
   const t = e.target;
-  if (t.dataset.tab) { tab = t.dataset.tab; location.hash = tab; return render(); }
+  // A click on the count reaches the span, not the tab button.
+  const tabButton = t.closest("[data-tab]");
+  if (tabButton) return setTab(tabButton.dataset.tab);
+  if (t.id === "closeError") { $("#errors").innerHTML = ""; return; }
+  if (t.id === "undo") {
+    const undo = toastUndo;
+    hideToast();
+    if (undo) await undo();
+    return render();
+  }
+  if (t.id === "bulkDone")
+    return bulkApply("/api/items/done", (key, category) => ({key, category, done: true}),
+      (key, category) => ({key, category, done: false}), (n) => `${n} marked done.`);
+  if (t.id === "clearSel") { selected.clear(); return render(); }
   if (t.id === "order") { oldest[tab] = !oldest[tab]; return render(); }
   if (t.id === "clearFilters") {
     filters[tab] = {};
@@ -332,11 +459,20 @@ document.addEventListener("click", async (e) => {
   }
   if (t.dataset.saveNote) return saveNote(t.closest(".note-edit"));
   if (t.dataset.done) {
-    await post("/api/items/done", {key: t.dataset.done, category: t.dataset.cat, done: t.dataset.val === "1"});
+    const item = {key: t.dataset.done, category: t.dataset.cat};
+    const done = t.dataset.val === "1";
+    await post("/api/items/done", {...item, done});
+    if (done) showToast("Marked done.", () => post("/api/items/done", {...item, done: false}));
     return render();
   }
-  if (t.id === "allDone" && confirm("Mark every Watch item done?")) {
-    await post("/api/items/all-done", {category: "watch"}); return render();
+  if (t.id === "allDone") {
+    // The undo restores the items of the tab, also the ones that a filter hides.
+    const open = lastItems.filter((i) => !i.done).map((i) => ({key: i.key, category: i.category}));
+    await post("/api/items/all-done", {category: "watch"});
+    showToast(`${open.length} marked done.`, async () => {
+      for (const item of open) await post("/api/items/done", {...item, done: false});
+    });
+    return render();
   }
   if (t.id === "addRepo") {
     try { await post("/api/repos/add", {full_name: $("#newRepo").value}); render(); }
@@ -351,8 +487,8 @@ document.addEventListener("click", async (e) => {
     try {
       await post("/api/forgejo/token", {token: t.id === "saveToken" ? $("#forgejoToken").value : ""});
       await render();
-      $("#setNote").textContent = t.id === "saveToken" ? "Token saved." : "Token removed.";
-    } catch (err) { $("#setError").textContent = err.message; }
+      $("#tokenNote").textContent = t.id === "saveToken" ? "Token saved." : "Token removed.";
+    } catch (err) { $("#tokenError").textContent = err.message; }
     return;
   }
   if (t.id === "resetSettings") {
@@ -363,15 +499,15 @@ document.addEventListener("click", async (e) => {
   if (t.id === "stopDaemon"
       && confirm("Stop the daemon? Sync and pop-ups stop until you run oss-inbox web again.")) {
     try { await post("/api/stop"); }
-    catch (err) { return alert(err.message); }
+    catch (err) { return showError(err.message); }
     return showStopped();
   }
   if (t.id === "sync") {
     t.disabled = true; t.textContent = "Syncing…";
-    try { const r = await post("/api/sync"); if (r.result !== "ok") alert("Sync: " + r.result); }
+    try { const r = await post("/api/sync"); if (r.result !== "ok") showError("Sync: " + r.result); }
     finally { t.disabled = false; t.textContent = "Sync now"; render(); }
   }
-});
+}
 
 document.addEventListener("change", async (e) => {
   const t = e.target;
@@ -381,7 +517,23 @@ document.addEventListener("change", async (e) => {
     else if (t.dataset.stall) await post("/api/items/stall", {key: t.dataset.stall, days: t.value});
     else if (t.dataset.move) {
       if (!t.value) return;
-      await post("/api/items/move", {key: t.dataset.move, category: t.dataset.cat, to: t.value});
+      const item = {key: t.dataset.move, category: t.dataset.cat}, from = tab;
+      await post("/api/items/move", {...item, to: t.value});
+      showToast(`Moved to ${tabLabel(t.value)}.`, () => post("/api/items/move", {...item, to: from}));
+    }
+    else if (t.id === "bulkMove") {
+      if (!t.value) return;
+      const to = t.value, from = tab;
+      return bulkApply("/api/items/move", (key, category) => ({key, category, to}),
+        (key, category) => ({key, category, to: from}), (n) => `${n} moved to ${tabLabel(to)}.`);
+    }
+    else if (t.dataset.sel) {
+      if (t.checked) selected.add(t.dataset.sel); else selected.delete(t.dataset.sel);
+      return render();
+    }
+    else if (t.id === "shortcutsOn") {
+      try { localStorage.setItem("shortcuts", t.checked ? "on" : "off"); } catch { /* not saved */ }
+      return;
     }
     else if (t.id === "showDone") return render();
     else if (t.dataset.ffield) { filters[tab][t.dataset.ffield] = t.value; return render(); }
@@ -391,7 +543,7 @@ document.addEventListener("change", async (e) => {
     status = await get("/api/status"); renderTabs();
     if (t.dataset.stall || t.dataset.move) render();
   } catch (err) {
-    alert(err.message);
+    showError(err.message);
   }
 });
 
@@ -399,12 +551,39 @@ async function saveNote(box) {
   try {
     await post("/api/items/note", {key: box.dataset.editor, body: box.querySelector("textarea").value});
     render();
-  } catch (err) { alert(err.message); }
+  } catch (err) { showError(err.message); }
 }
 
 document.addEventListener("keydown", (e) => {
-  const box = e.target.closest && e.target.closest(".note-edit");
-  if (box && e.key === "Enter" && e.ctrlKey) { e.preventDefault(); saveNote(box); }
+  const t = e.target;
+  const box = t.closest && t.closest(".note-edit");
+  if (box && e.key === "Enter" && e.ctrlKey) { e.preventDefault(); saveNote(box); return; }
+  // The arrow keys move between the tabs, as in the ARIA tabs pattern.
+  if (t.closest && t.closest("[data-tab]") && ["ArrowLeft", "ArrowRight"].includes(e.key)) {
+    e.preventDefault();
+    const i = TABS.findIndex(([id]) => id === tab) + (e.key === "ArrowRight" ? 1 : TABS.length - 1);
+    setTab(TABS[i % TABS.length][0]).then(() => $(`[data-tab="${tab}"]`).focus());
+    return;
+  }
+  // The single-key shortcuts. They do nothing while the user types in a field.
+  if (!shortcutsOn() || stopped || e.ctrlKey || e.metaKey || e.altKey || $("#help").open) return;
+  if (t.matches && t.matches("input, select, textarea, [contenteditable]")) return;
+  const rows = [...document.querySelectorAll(".row[data-row]")];
+  const row = document.activeElement && document.activeElement.closest
+    && document.activeElement.closest(".row[data-row]");
+  const press = (selector) => { const el = row && row.querySelector(selector); if (el) el.click(); };
+  if (e.key === "j" || e.key === "k") {
+    if (!rows.length) return;
+    const i = rows.indexOf(row);
+    const next = i < 0 ? 0 : Math.min(Math.max(i + (e.key === "j" ? 1 : -1), 0), rows.length - 1);
+    rows[next].focus();
+  } else if (e.key === "e") press("[data-done]");
+  else if (e.key === "s") press("[data-prio]");
+  else if (e.key === "x") press("[data-sel]");
+  else if (e.key === "u") { if (toastUndo) $("#undo").click(); }
+  else if (e.key === "?") $("#help").showModal();
+  else return;
+  e.preventDefault();
 });
 
 document.addEventListener("input", (e) => {

@@ -399,10 +399,12 @@ def refresh_waiting(conn, login):
             "waiting_since = ? WHERE key = ? AND category = 'mine'",
             (json.dumps(waits) if waits else None, row["updated_at"], waiting_for,
              min((waits[n] for n in overdue), default=None), row["key"]))
-        # A new overdue reviewer gives a new pop-up.
+        # A new overdue reviewer gives a new pop-up and pins the item.
+        # Only you unpin it.
         if waiting_for != row["waiting_for"]:
             conn.execute(
-                "UPDATE items SET last_notified = NULL, notify_count = 0 "
+                "UPDATE items SET last_notified = NULL, notify_count = 0"
+                + (", priority = 1" if waiting_for else "") + " "
                 "WHERE key = ? AND category = 'mine'", (row["key"],))
 
 

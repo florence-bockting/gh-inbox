@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS items (
     activity      INTEGER NOT NULL DEFAULT 0,
     assigned      INTEGER NOT NULL DEFAULT 0,   -- you are an assignee (Action only)
     moved_to      TEXT,               -- the tab you moved the item to
-    priority      INTEGER NOT NULL DEFAULT 0,   -- 1 = high: first in the list
+    priority      INTEGER NOT NULL DEFAULT 0,   -- 1 = pinned: first in the list
     review_waits  TEXT,               -- JSON {reviewer: start} of your PR (My work only)
     review_checked TEXT,              -- updated_at when the app last read the timeline
     waiting_for   TEXT,               -- overdue reviewers, for example "x, org/team"
@@ -110,6 +110,10 @@ def connect():
     # The ToDo tab had the name "reminder" before.
     conn.execute("UPDATE items SET category = 'todo', reason = 'todo' WHERE category = 'reminder'")
     conn.execute("UPDATE items SET moved_to = 'todo' WHERE moved_to = 'reminder'")
+    # Overdue PRs from before the pin get a pin one time. Your later unpins stay.
+    if not get_meta(conn, "pinned_overdue"):
+        conn.execute("UPDATE items SET priority = 1 WHERE waiting_for IS NOT NULL")
+        set_meta(conn, "pinned_overdue", "1")
     conn.executemany(
         "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
         DEFAULT_SETTINGS.items(),
@@ -200,8 +204,8 @@ def list_items(conn, category, show_done=False, oldest_first=False):
         sql += (" AND NOT EXISTS (SELECT 1 FROM items a WHERE a.key = items.key"
                 " AND coalesce(a.moved_to, a.category) = 'action' AND a.done = 0)")
     when = "updated_at" if category == "mine" else "coalesce(event_at, updated_at)"
-    # High priority first, then overdue reviews, in both orders.
-    sql += (f" ORDER BY priority DESC, waiting_for IS NOT NULL DESC, "
+    # Pinned items first, in both orders.
+    sql += (f" ORDER BY priority DESC, "
             f"{when} {'ASC' if oldest_first else 'DESC'}")
     from . import notes  # notes imports db
     saved = notes.load(get_setting(conn, "notes_file"))

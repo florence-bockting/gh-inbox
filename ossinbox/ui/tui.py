@@ -62,7 +62,6 @@ SETTINGS = [
     ("new_item_days", "Watch history (days)"),
     ("notify", "Pop-ups on (1) / off (0)"),
     ("notes_file", "Notes file"),
-    ("forgejo_url", "Codeberg URL"),
 ]
 CODEBERG_STYLE = "bold #2185d0"
 
@@ -88,7 +87,7 @@ def ago(iso):
 
 
 def _ident(row):
-    return row.get("key") or row.get("full_name"), row.get("category")
+    return row.get("key") or row.get("full_name") or row.get("id"), row.get("category")
 
 
 class Prompt(ModalScreen):
@@ -135,7 +134,7 @@ class InboxApp(App):
         Binding("r", "remind", "Remind every"),
         Binding("s", "stall", "Stall days"),
         Binding("m", "move", "Move to tab"),
-        Binding("p", "priority", "High priority"),
+        Binding("p", "priority", "Pin/unpin"),
         Binding("n", "note", "Note"),
         Binding("f", "filter", "Filter"),
         Binding("x", "clear_filters", "Clear filters"),
@@ -270,15 +269,26 @@ class InboxApp(App):
         self._fill("repos", db.list_repos(self.conn), lambda r: (
             Text("[x]" if r["watched"] else "[ ]", style="bold green" if r["watched"] else ""),
             repo_cell(r["full_name"]), r["source"] or ""))
-        info = [
-            {"key": None, "label": "API requests each hour (most)",
+        # Each service has one section with the same rows: account, server, login.
+        account = lambda login: f"connected as @{login}" if login else "not connected"
+        rows = [
+            {"key": None, "id": "gh", "label": "GitHub", "head": True, "value": ""},
+            {"key": None, "id": "gh_account", "label": "  Account", "value": account(st["login"])},
+            {"key": None, "id": "gh_server", "label": "  Server", "value": "github.com"},
+            {"key": None, "id": "gh_login", "label": "  Login", "value": "run `gh auth login` in a terminal"},
+            {"key": None, "id": "gh_api", "label": "  API requests each hour (most)",
              "value": f"about {st['estimate_per_hour']} of {rate.get('limit', 5000)}"},
-            {"key": None, "label": "Last sync used", "value": st["last_sync_cost"] or "?"},
-        ]
-        token = {"key": "forgejo_token", "label": "Codeberg token",
-                 "value": "saved" if st["forgejo_token"] else "not set"}
-        self._fill("settings", [{"key": k, "label": l, "value": settings[k]}
-                                for k, l in SETTINGS] + [token] + info, lambda s: (s["label"], s["value"]))
+            {"key": None, "id": "gh_cost", "label": "  Last sync used", "value": st["last_sync_cost"] or "?"},
+            {"key": None, "id": "cb", "label": "Codeberg", "head": True, "value": ""},
+            {"key": None, "id": "cb_account", "label": "  Account", "value": account(st["forgejo_login"])},
+            {"key": "forgejo_url", "label": "  Server", "prompt": "Codeberg server URL",
+             "value": settings["forgejo_url"]},
+            {"key": "forgejo_token", "label": "  Login",
+             "value": "token saved" if st["forgejo_token"] else "no token: press e to paste one"},
+            {"key": None, "id": "general", "label": "General", "head": True, "value": ""},
+        ] + [{"key": k, "label": "  " + l, "value": settings[k]} for k, l in SETTINGS]
+        self._fill("settings", rows, lambda s: (
+            Text(s["label"], style="bold" if s.get("head") else ""), s["value"]))
 
     def _items(self, category):
         items = db.list_items(self.conn, category, self.show_done, self.oldest.get(category, False))
@@ -331,13 +341,12 @@ class InboxApp(App):
 
     def _title(self, it):
         text = Text(it["title"] or "")
-        if it.get("waiting_for"):
-            text.stylize("bold #f0a070")
         if it.get("note"):
             note = it["note"].splitlines()[0]
             text.append("  ✎ " + (note[:40] + "…" if len(note) > 40 else note), style="dim italic")
         if it["priority"]:
-            text = Text("★ ", style="bold red") + text
+            text = Text("⚑ ", style="bold red") + text
+            text.stylize("bold #f0a070")
         return text
 
     def _badge(self, it):
@@ -519,7 +528,7 @@ class InboxApp(App):
                      password=True)
             return
         value = db.get_setting(self.conn, it["key"])
-        self.ask(f"{it['label']}:", value,
+        self.ask(f"{it.get('prompt', it['label'].strip())}:", value,
                  lambda v: v is not None and self.do("settings", {it["key"]: v}))
 
 
