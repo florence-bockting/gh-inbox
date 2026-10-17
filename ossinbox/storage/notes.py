@@ -10,7 +10,9 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
-from . import db, osdeps
+from .. import osdeps
+from ..core.timeutil import now_iso
+from . import db
 
 FIELDS = ["key", "repo", "number", "title", "url", "note", "updated_at"]
 LOCK_WAIT = 5  # seconds
@@ -62,7 +64,7 @@ def save(file, item, body):
             rows[item["key"]] = {
                 "key": item["key"], "repo": item["repo"], "number": item["number"] or "",
                 "title": item["title"] or "", "url": item["url"] or "", "note": body,
-                "updated_at": db.now_iso(),
+                "updated_at": now_iso(),
             }
         elif rows.pop(item["key"], None) is None:
             return

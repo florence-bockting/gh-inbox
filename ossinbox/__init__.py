@@ -1,1 +1,1 @@
-"""oss-inbox: a local interface for GitHub notifications, built on the gh CLI."""
+"""oss-inbox: a local interface for notifications from GitHub and Codeberg."""

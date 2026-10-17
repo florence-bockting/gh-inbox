@@ -1,4 +1,4 @@
-from ossinbox import db
+from ossinbox.storage import db
 
 
 def test_move_old_data(tmp_path, monkeypatch):

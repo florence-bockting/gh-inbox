@@ -76,7 +76,7 @@ You can use oss-inbox in two ways:
     | `v` | Reverse the order: newest first or oldest first |
     | `A` | Mark all Watch items done |
     | `Space` | Watch a repo, or stop (Repos) |
-    | `a` / `L` | Add a repo / load your GitHub repos (Repos) |
+    | `a` / `L` | Add a repo / load your repos (Repos) |
     | `e` | Edit a setting (Settings) |
     | `u` | Sync now |
     | `q` | Quit |
@@ -89,12 +89,12 @@ Do steps 1 to 3 once, after the first start. Then the inbox fills up. Do step 4 
 
     === "In the browser"
 
-        Click **Load my GitHub repos**. Or type `owner/repo` and click
+        Click **Load my repos**. Or type `owner/repo` and click
         **Add and watch**. Then select the check box of each repo to watch.
 
     === "In the terminal"
 
-        Press `L` to load your GitHub repos. Or press `a` to add a repo. Then
+        Press `L` to load your repos. Or press `a` to add a repo. Then
         press `Space` on each repo to watch.
 
     <figure markdown>
@@ -136,7 +136,7 @@ Do steps 1 to 3 once, after the first start. Then the inbox fills up. Do step 4 
 
 ## Basic commands
 
-The background process (the "daemon") syncs with GitHub every 60 minutes
+The background process (the "daemon") syncs every 60 minutes
 ([default settings](#default-settings)). It
 sends the pop-ups and serves the web page.
 
@@ -364,9 +364,9 @@ The status bar is at the top of the web page and of the terminal UI. It shows:
 
 | Part | Meaning |
 | :-- | :-- |
-| `@your-login` | The GitHub account that `gh` uses |
+| `@your-login` | The account that `gh` and codeberg use |
 | `synced 5m ago` | The time of the last sync. Before the first sync: `never synced`. |
-| `poller running` | The daemon syncs with GitHub. In red: `poller not running`. Run `oss-inbox web` to start the daemon again. |
+| `poller running` | The daemon syncs. In red: `poller not running`. Run `oss-inbox web` to start the daemon again. |
 | `sync error` | The last sync failed. In the web page, move the mouse on it to see the error. |
 | `API 4800/5000` | GitHub API requests left in this hour, and the limit. See [GitHub API use](#github-api-use). |
 

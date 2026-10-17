@@ -136,7 +136,7 @@ To stop the daemon, click **Stop daemon** on the web page, or run `oss-inbox sto
 
 Then set up the app in the browser. For the terminal UI, see [Start the app](usage.md#start-the-app).
 
-1. Open the **Repos** tab ([how your inbox is organized](usage.md#how-your-inbox-is-organized)). Click **Load my GitHub repos**, or type `owner/repo`.
+1. Open the **Repos** tab ([how your inbox is organized](usage.md#how-your-inbox-is-organized)). Click **Load my repos**, or type `owner/repo`.
    Then select the repos to watch.
 
 2. Click **Sync now** and wait for the updates to appear.

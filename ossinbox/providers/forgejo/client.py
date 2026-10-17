@@ -5,11 +5,15 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from ..base import ProviderError
+
 # Forgejo returns at most this many results on one page.
 PAGE_LIMIT = 50
+# The token file is "forgejo.token" in the data folder.
+TOKEN_NAME = "forgejo"
 
 
-class ForgejoError(RuntimeError):
+class ForgejoError(ProviderError):
     pass
 
 

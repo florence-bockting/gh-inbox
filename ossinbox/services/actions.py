@@ -2,7 +2,10 @@
 
 import time
 
-from . import db, forgejo, notes, sync
+from ..core import items
+from ..providers import registry
+from ..providers.forgejo.client import TOKEN_NAME
+from ..storage import db, notes, secrets
 
 # The poller writes a heartbeat each round. Older than this means it is not running.
 HEARTBEAT_MAX_AGE = 180
@@ -23,15 +26,7 @@ def repo_name(conn, text):
 
     GitHub: "owner/repo". Codeberg: "codeberg.org/owner/repo".
     """
-    name = text.strip().removeprefix("https://").removeprefix("http://").strip("/")
-    name = name.removesuffix(".git").removeprefix("github.com/")
-    host = forgejo.host(db.get_setting(conn, "forgejo_url"))
-    parts = name.split("/")
-    if len(parts) == 3 and parts[0] == host and all(parts):
-        return name
-    if len(parts) == 2 and all(parts):
-        return name
-    raise ValueError(f"use the form owner/repo, or a URL on github.com or {host}")
+    return registry.parse_repo(conn, text)
 
 
 def apply(conn, action, body):
@@ -48,7 +43,7 @@ def apply(conn, action, body):
         db.set_remind(conn, body["key"], body["category"], _hours(body.get("hours")))
     elif action == "items/stall":
         db.set_stall_days(conn, body["key"], _hours(body.get("days")))
-        sync.refresh_stalled(conn)
+        items.refresh_stalled(conn)
     elif action == "items/note":
         item = conn.execute("SELECT * FROM items WHERE key = ? LIMIT 1",
                             (body["key"],)).fetchone()
@@ -60,11 +55,11 @@ def apply(conn, action, body):
     elif action == "repos/add":
         db.add_repo(conn, repo_name(conn, body["full_name"]), watched=True)
     elif action == "forgejo/token":
-        db.set_token(body.get("token"))
+        secrets.set_token(TOKEN_NAME, body.get("token"))
     elif action == "settings":
         for key, value in body.items():
             db.set_setting(conn, key, value)
-        sync.refresh_stalled(conn)
+        items.refresh_stalled(conn)
     else:
         raise KeyError(f"unknown action {action}")
 
@@ -72,11 +67,7 @@ def apply(conn, action, body):
 def status(conn):
     beat = db.get_meta(conn, "heartbeat")
     running = bool(beat) and time.time() - float(beat) < HEARTBEAT_MAX_AGE
-    return {
-        "login": db.get_meta(conn, "login"),
-        "forgejo_login": db.get_meta(conn, "forgejo_login") if db.get_token() else None,
-        # Only whether a token exists. The token itself never leaves the file.
-        "forgejo_token": bool(db.get_token()),
+    out = {
         "last_sync": db.get_meta(conn, "last_sync"),
         "last_error": db.get_meta(conn, "last_error") or "",
         "poller_running": running,
@@ -84,7 +75,7 @@ def status(conn):
         "settings": {k: db.get_setting(conn, k) for k in db.DEFAULT_SETTINGS},
         "defaults": db.DEFAULT_SETTINGS,
         "watched": len(db.watched_repos(conn)),
-        "rate": sync.rate_status(conn),
-        "estimate_per_hour": sync.estimate_per_hour(conn),
-        "last_sync_cost": db.get_meta(conn, "last_sync_cost"),
     }
+    for provider in registry.PROVIDERS:
+        out.update(provider.status(conn))
+    return out

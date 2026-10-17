@@ -4,29 +4,62 @@
 
 - **Two dependencies:** [Flask](https://flask.palletsprojects.com/) for the web
   page, and [Textual](https://textual.textualize.io/) for the terminal UI.
-- **`gh api`** makes every GitHub request. The app stores no token.
+- **`gh api`** makes every GitHub request.
 - **SQLite** in WAL mode holds the state. The daemon, the web page and the
   terminal UI can use it at the same time.
-- **Both UIs call the same functions** in `state.py`. They behave the same.
+- **Both UIs call the same functions** in `services/actions.py`. They behave the same.
+- **One provider for each forge.** The sync, the UIs and the pop-ups know only
+  the `Provider` contract in `providers/base.py`. They never import a forge client.
 
 ## Files
 
+The code has five layers. A layer imports only the layers below it.
+
+| Layer | Content |
+| :-- | :-- |
+| `ui/` | The two UIs |
+| `services/` | The jobs that the UIs and the daemon share |
+| `providers/` | One folder for each forge |
+| `core/` | The item rules that every forge uses |
+| `storage/` | SQLite, the notes CSV and the token files |
+
 | File | Content |
 | :-- | :-- |
-| `ossinbox/gh.py` | Wrapper for `gh api`. Only GET requests. |
-| `ossinbox/db.py` | SQLite schema, settings and queries |
-| `ossinbox/sync.py` | Gets data from GitHub and sorts it into the tabs |
-| `ossinbox/forgejo.py` | Small client for the Codeberg (Forgejo) API. Only GET requests. |
-| `ossinbox/sync_forgejo.py` | Gets data from Codeberg and sorts it into the tabs |
-| `ossinbox/reminders.py` | Finds the items that need a pop-up now |
-| `ossinbox/notes.py` | Reads and writes the notes CSV |
-| `ossinbox/osdeps.py` | All code that differs between Linux, macOS and Windows |
-| `ossinbox/state.py` | The UI actions that both UIs share |
-| `ossinbox/daemon.py` | Timer for sync and pop-ups, plus the web server |
-| `ossinbox/web.py` | Flask app: JSON API for the web page |
-| `ossinbox/static/` | The web page: `index.html`, `app.css` and `app.js` |
-| `ossinbox/tui.py` | The terminal UI |
 | `ossinbox/cli.py` | The `oss-inbox` command |
+| `ossinbox/daemon.py` | Timer for sync and pop-ups, plus the web server |
+| `ossinbox/osdeps.py` | All code that differs between Linux, macOS and Windows |
+| `ossinbox/ui/web.py` | Flask app: JSON API for the web page |
+| `ossinbox/ui/static/` | The web page: `index.html`, `app.css` and `app.js` |
+| `ossinbox/ui/tui.py` | The terminal UI |
+| `ossinbox/services/sync.py` | Runs the sync of each forge in the registry |
+| `ossinbox/services/actions.py` | The UI actions and the status that both UIs share |
+| `ossinbox/services/reminders.py` | Finds the items that need a pop-up now |
+| `ossinbox/providers/base.py` | The `Provider` contract and the repo name helpers |
+| `ossinbox/providers/registry.py` | The list of forges, and the lookup of a forge by repo name |
+| `ossinbox/providers/github/client.py` | Wrapper for `gh api`, with ETags. Only GET requests. |
+| `ossinbox/providers/github/sync.py` | Gets data from GitHub and sorts it into the tabs |
+| `ossinbox/providers/github/ratelimit.py` | The GitHub rate limit and the cost estimate |
+| `ossinbox/providers/forgejo/client.py` | Small client for the Forgejo API. Only GET requests. |
+| `ossinbox/providers/forgejo/sync.py` | Gets data from Codeberg and sorts it into the tabs |
+| `ossinbox/core/items.py` | Insert, reopen and close items. The stalled flag. |
+| `ossinbox/core/timeutil.py` | UTC times as ISO strings |
+| `ossinbox/storage/db.py` | SQLite schema, settings and queries |
+| `ossinbox/storage/etags.py` | The stored ETags. No HTTP. |
+| `ossinbox/storage/notes.py` | Reads and writes the notes CSV |
+| `ossinbox/storage/secrets.py` | The token files. Only you can read them. |
+
+## Add a forge
+
+1. Add the folder `providers/<forge>/` with a `client.py` and a `sync.py`.
+2. Raise a subclass of `ProviderError` in the client.
+3. Use `upsert`, `reopen_item` and `auto_done` from `core/items.py` in the sync.
+   Do not write your own item rules.
+4. Add a provider class in `providers/<forge>/__init__.py`. Give it every member
+   of `Provider` in `providers/base.py`.
+5. Add an instance of the class to `PROVIDERS` in `providers/registry.py`.
+
+A repo name must tell its forge. GitHub has "owner/repo". Another forge has
+"host/owner/repo". Do not change this format: the database keys use it.
 
 ## How a sync works
 
@@ -43,14 +76,14 @@
 5. **My work:** the search `author:@me is:open`. Then compute the stalled flag.
 
 The table `items` has the primary key `(key, category)`. One issue can be in
-Action and in My work at the same time. A sync changes only the GitHub fields.
+Action and in My work at the same time. A sync changes only the fields.
 Your own values stay: done, reminder interval, stall time, priority and tab.
 
 ## Rules
 
-- **Do not write to GitHub.** `gh.py` sends only GET requests. Keep it that way.
+- **Do not write to a forge.** The clients send only GET requests. Keep it that way.
 - **Keep OS-specific code in `osdeps.py`.**
-- **Never put GitHub text into a script.** Issue titles go to the pop-up tools
+- **Never put text into a script.** Issue titles go to the pop-up tools
   as arguments or environment variables. Then a title cannot run code.
 - **Keep the web server safe.** It binds `127.0.0.1` only. It refuses a foreign
   `Host` header. Each POST needs the header `X-OSS-Inbox: 1`.
@@ -126,7 +159,8 @@ Use test data for all steps (see [Use test data](#use-test-data)).
 
    ```bash
    python -c "
-   from ossinbox import osdeps, db
+   from ossinbox import osdeps
+   from ossinbox.storage import db
    p = db.DATA_DIR / 'sync.lock'
    with osdeps.try_lock(p) as a:
        with osdeps.try_lock(p) as b:
@@ -152,7 +186,7 @@ Textual can run the UI headless. Example:
 
 ```python
 import asyncio
-from ossinbox.tui import InboxApp
+from ossinbox.ui.tui import InboxApp
 
 async def main():
     app = InboxApp()

@@ -1,12 +1,10 @@
 """SQLite state: watched repos, items per tab, settings."""
 
-import json
 import os
 import sqlite3
-from datetime import datetime, timezone
 from pathlib import Path
 
-from . import gh
+from ..core.timeutil import now_iso
 
 # The app had the name gh-inbox before. The old environment variable still works.
 DATA_DIR = Path(os.environ.get("OSS_INBOX_DIR") or os.environ.get("GH_INBOX_DIR")
@@ -26,10 +24,6 @@ DEFAULT_SETTINGS = {
 }
 # The other settings are numeric.
 TEXT_SETTINGS = {"notes_file", "forgejo_url"}
-
-# A GitHub repo is "owner/repo". A Codeberg repo has the host as prefix:
-# "codeberg.org/owner/repo". So the same name on both stays two repos.
-GITHUB_ONLY = "repo NOT LIKE '%/%/%'"
 
 TABS = ("action", "watch", "mine", "todo")
 # The tab that shows an item: the tab you moved it to, or the tab that the sync chose.
@@ -89,65 +83,6 @@ CREATE TABLE IF NOT EXISTS meta (
     value TEXT
 );
 """
-
-
-def now_iso():
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def parse_iso(value):
-    return datetime.fromisoformat(value) if value else None
-
-
-def forge_host(repo):
-    """The host of a Codeberg repo, for example "codeberg.org". None for a GitHub repo."""
-    parts = repo.split("/")
-    return parts[0] if len(parts) == 3 else None
-
-
-def short_repo(repo):
-    """The repo name without the host: "owner/repo"."""
-    return repo.split("/", 1)[1] if forge_host(repo) else repo
-
-
-def forge_prefix(repo):
-    """GH for GitHub, CB for Codeberg, FJ for another Forgejo server."""
-    host = forge_host(repo)
-    return "GH" if host is None else "CB" if host == "codeberg.org" else "FJ"
-
-
-def repo_label(repo):
-    """The repo name in the UIs: "GH owner/repo" or "CB owner/repo"."""
-    return f"{forge_prefix(repo)} {short_repo(repo)}"
-
-
-# ---- Codeberg token ---------------------------------------------------------
-
-def token_path():
-    return DATA_DIR / "forgejo.token"
-
-
-def get_token():
-    """The Codeberg access token, or "" when you did not save one."""
-    try:
-        return token_path().read_text(encoding="utf-8").strip()
-    except FileNotFoundError:
-        return ""
-
-
-def set_token(value):
-    """Save the token in a file that only you can read. An empty value removes the file."""
-    path = token_path()
-    value = (value or "").strip()
-    if not value:
-        path.unlink(missing_ok=True)
-        return
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        f.write(value)
-    # An existing file keeps its old mode on O_CREAT.
-    os.chmod(path, 0o600)
 
 
 def move_old_data():
@@ -218,25 +153,6 @@ def get_meta(conn, key, default=None):
 def set_meta(conn, key, value):
     conn.execute("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)", (key, value))
     conn.commit()
-
-
-def cached_get(conn, path, context="", keep_body=False):
-    """GET with an ETag. Return (changed, body). A 304 answer is free.
-
-    On 304, changed is False. The body is then the stored body, or None without
-    keep_body. A change of `context` (for example a new watch start) drops the
-    stored ETag. The new ETag is stored in the open transaction: when the sync
-    fails, the rollback removes it, and the next sync gets the data again.
-    """
-    row = conn.execute("SELECT * FROM etags WHERE path = ?", (path,)).fetchone()
-    etag = row["etag"] if row and row["context"] == context else None
-    status, new_etag, body = gh.request(path, etag)
-    if status == 304:
-        return False, json.loads(row["body"]) if keep_body and row["body"] else None
-    conn.execute(
-        "INSERT OR REPLACE INTO etags (path, context, etag, body) VALUES (?, ?, ?, ?)",
-        (path, context, new_etag, json.dumps(body) if keep_body else None))
-    return True, body
 
 
 # ---- repos ------------------------------------------------------------------

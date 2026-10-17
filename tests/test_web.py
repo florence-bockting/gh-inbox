@@ -1,6 +1,7 @@
 import pytest
 
-from ossinbox import db, web
+from ossinbox.storage import db
+from ossinbox.ui import web
 
 
 @pytest.fixture

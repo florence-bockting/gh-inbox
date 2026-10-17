@@ -3,10 +3,12 @@
 import json
 import subprocess
 
-from . import osdeps
+from ... import osdeps
+from ...storage import etags
+from ..base import ProviderError
 
 
-class GhError(RuntimeError):
+class GhError(ProviderError):
     pass
 
 
@@ -89,3 +91,19 @@ def request(path, etag=None):
     if status == 304:
         return status, etag, None
     return status, headers.get("etag"), json.loads(body) if body.strip() else None
+
+
+def cached_get(conn, path, context="", keep_body=False):
+    """GET with an ETag. Return (changed, body). A 304 answer is free.
+
+    On 304, changed is False. The body is then the stored body, or None without
+    keep_body. A change of `context` (for example a new watch start) drops the
+    stored ETag. The new ETag is stored in the open transaction: when the sync
+    fails, the rollback removes it, and the next sync gets the data again.
+    """
+    etag, stored = etags.load(conn, path, context)
+    status, new_etag, body = request(path, etag)
+    if status == 304:
+        return False, stored if keep_body else None
+    etags.store(conn, path, context, new_etag, body if keep_body else None)
+    return True, body

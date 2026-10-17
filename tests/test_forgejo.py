@@ -3,7 +3,13 @@ import sys
 
 import pytest
 
-from ossinbox import db, forgejo, state, sync, sync_forgejo
+from ossinbox.core import items as core_items
+from ossinbox.providers import base, registry
+from ossinbox.providers.forgejo import client as forgejo
+from ossinbox.providers.forgejo import sync as sync_forgejo
+from ossinbox.providers.github import sync as sync_github
+from ossinbox.services import actions, sync
+from ossinbox.storage import db, secrets
 
 HOST = "codeberg.org"
 REPO = "owner/repo"
@@ -12,7 +18,7 @@ REPO = "owner/repo"
 @pytest.fixture
 def conn(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(db, "DB_PATH", tmp_path / "state.db")
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "actions.db")
     return db.connect()
 
 
@@ -53,7 +59,7 @@ def api(conn, monkeypatch):
     fake = FakeApi()
     monkeypatch.setattr(forgejo, "get", fake.get)
     monkeypatch.setattr(forgejo, "get_all", fake.get_all)
-    db.set_token("secret")
+    secrets.set_token("forgejo", "secret")
     db.add_repo(conn, f"{HOST}/{REPO}", watched=True)
     return fake
 
@@ -64,16 +70,16 @@ def items(conn, category):
 
 
 def test_token_file(conn):
-    assert db.get_token() == ""
-    db.set_token(" secret \n")
-    assert db.get_token() == "secret"
+    assert secrets.get_token("forgejo") == ""
+    secrets.set_token("forgejo", " secret \n")
+    assert secrets.get_token("forgejo") == "secret"
     if sys.platform != "win32":
-        assert os.stat(db.token_path()).st_mode & 0o777 == 0o600
-    st = state.status(conn)
+        assert os.stat(secrets.token_path("forgejo")).st_mode & 0o777 == 0o600
+    st = actions.status(conn)
     assert st["forgejo_token"] is True
     assert "secret" not in repr(st)
-    db.set_token("")
-    assert not db.token_path().exists()
+    secrets.set_token("forgejo", "")
+    assert not secrets.token_path("forgejo").exists()
 
 
 @pytest.mark.parametrize("text, name", [
@@ -83,21 +89,21 @@ def test_token_file(conn):
     ("https://codeberg.org/owner/repo.git", "codeberg.org/owner/repo"),
 ])
 def test_repo_name(conn, text, name):
-    assert state.repo_name(conn, text) == name
+    assert actions.repo_name(conn, text) == name
 
 
 @pytest.mark.parametrize("text", ["repo", "https://example.org/owner/repo", "a/b/c/d"])
 def test_repo_name_refuses(conn, text):
     with pytest.raises(ValueError):
-        state.repo_name(conn, text)
+        actions.repo_name(conn, text)
 
 
 def test_short_repo():
-    assert db.short_repo(f"{HOST}/{REPO}") == REPO
-    assert db.short_repo(REPO) == REPO
-    assert db.repo_label(f"{HOST}/{REPO}") == f"CB {REPO}"
-    assert db.repo_label("other.org/a/b") == "FJ a/b"
-    assert db.repo_label(REPO) == f"GH {REPO}"
+    assert base.short_repo(f"{HOST}/{REPO}") == REPO
+    assert base.short_repo(REPO) == REPO
+    assert registry.repo_label(f"{HOST}/{REPO}") == f"CB {REPO}"
+    assert registry.repo_label("other.org/a/b") == "FJ a/b"
+    assert registry.repo_label(REPO) == f"GH {REPO}"
 
 
 def test_no_token_skips(conn):
@@ -148,7 +154,7 @@ def test_unwatched_repo_is_skipped(conn, api):
 
 def test_github_items_stay(conn, api):
     """The Codeberg sync does not mark GitHub items done."""
-    sync.upsert(conn, {"key": "owner/repo#9", "category": "mine", "repo": REPO,
+    core_items.upsert(conn, {"key": "owner/repo#9", "category": "mine", "repo": REPO,
                        "number": 9, "kind": "issue", "updated_at": "2026-10-10T00:00:00Z"})
     sync_forgejo.sync(conn)
     assert items(conn, "mine")["owner/repo#9"]["done"] == 0
@@ -158,7 +164,7 @@ def test_github_failure_does_not_stop_codeberg(conn, api, monkeypatch):
     def fail(conn):
         raise RuntimeError("gh is broken")
 
-    monkeypatch.setattr(sync, "_sync_github", fail)
+    monkeypatch.setattr(sync_github, "sync", fail)
     api.searches["assigned"] = [issue(2)]
     result = sync.sync(conn)
     assert result == "error: GitHub: gh is broken"

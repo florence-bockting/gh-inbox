@@ -9,7 +9,7 @@ your action from the items that you only want to follow. It reminds you again
 when you do not act.
 
 The app uses the [`gh` CLI](https://cli.github.com/) for each GitHub request. It
-uses no AI service and no extra token. It sends only read requests, so it never
+uses no AI service. It sends only read requests, so it never
 changes anything on GitHub. All data stays on your computer.
 
 Use the app in your browser:

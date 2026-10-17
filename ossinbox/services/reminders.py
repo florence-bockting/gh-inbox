@@ -3,7 +3,11 @@
 import time
 from datetime import datetime, timedelta, timezone
 
-from . import db, osdeps
+from .. import osdeps
+from ..core.timeutil import now_iso, parse_iso
+from ..providers import registry
+from ..providers.github import ratelimit
+from ..storage import db
 
 # More pop-ups than this in one round become one summary pop-up.
 MAX_POPUPS = 5
@@ -41,7 +45,7 @@ def due(conn):
             f"SELECT *, {db.SHOWN} AS tab FROM items WHERE done = 0 AND "
             f"({db.SHOWN} IN ('action', 'todo') OR ({db.SHOWN} = 'mine' AND category = 'mine' "
             "AND (stalled = 1 OR waiting_for IS NOT NULL)))"):
-        last = db.parse_iso(row["last_notified"])
+        last = parse_iso(row["last_notified"])
         if last is None:
             out.append(row)
             continue
@@ -55,7 +59,7 @@ def due(conn):
 
 
 def _message(row):
-    repo = db.repo_label(row["repo"])
+    repo = registry.repo_label(row["repo"])
     ref = f"{repo}#{row['number']}" if row["number"] else repo
     if row["tab"] == "mine" and row["waiting_for"]:
         icon = ICONS["waiting"]
@@ -76,8 +80,7 @@ def _message(row):
 
 def rate_warning(conn):
     """Send one pop-up for each rate-limit window in which few requests are left."""
-    from . import sync
-    rate = sync.rate_status(conn)
+    rate = ratelimit.rate_status(conn)
     if rate["level"] not in ("low", "paused") or db.get_meta(conn, "rate_warned") == str(rate["reset"]):
         return
     db.set_meta(conn, "rate_warned", str(rate["reset"]))
@@ -103,7 +106,7 @@ def run(conn):
                     time.sleep(POPUP_GAP_SECONDS)
                 title, body = _message(row)
                 osdeps.notify(title, body, urgent=row["notify_count"] > 0)
-    now = db.now_iso()
+    now = now_iso()
     conn.executemany(
         "UPDATE items SET last_notified = ?, notify_count = notify_count + 1 "
         "WHERE key = ? AND category = ?",

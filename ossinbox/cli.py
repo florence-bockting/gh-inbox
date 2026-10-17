@@ -7,7 +7,10 @@ import time
 import urllib.request
 import webbrowser
 
-from . import db, osdeps, sync, web
+from . import osdeps
+from .services import sync
+from .storage import db
+from .ui import web
 
 
 def _daemon_up():
@@ -68,7 +71,7 @@ def cmd_stop():
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="oss-inbox", description="A better GitHub notifications inbox.")
+    parser = argparse.ArgumentParser(prog="oss-inbox", description="A better notifications inbox for GitHub and Codeberg.")
     parser.add_argument("command", choices=["daemon", "web", "stop", "tui", "sync", "test-popup"])
     args = parser.parse_args(argv)
     db.move_old_data()
@@ -80,7 +83,7 @@ def main(argv=None):
     elif args.command == "stop":
         cmd_stop()
     elif args.command == "tui":
-        from . import tui
+        from .ui import tui
         tui.main()
     elif args.command == "sync":
         print(sync.sync(db.connect()))

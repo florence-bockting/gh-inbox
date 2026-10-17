@@ -10,7 +10,7 @@ ROOT = os.path.dirname(SPECPATH)
 
 # Textual and Rich import some modules lazily. PyInstaller cannot find those itself.
 hidden = collect_submodules("textual") + collect_submodules("rich")
-datas = [(os.path.join(ROOT, "ossinbox", "static"), "ossinbox/static")]
+datas = [(os.path.join(ROOT, "ossinbox", "ui", "static"), "ossinbox/ui/static")]
 datas += collect_data_files("textual")
 
 a = Analysis(

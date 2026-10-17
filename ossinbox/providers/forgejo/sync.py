@@ -11,8 +11,10 @@ The repo names have the host as prefix, for example "codeberg.org/owner/repo".
 
 from datetime import timedelta
 
-from . import db, forgejo
-from .sync import _auto_done, _iso, _reopen, _utcnow, upsert
+from ...core.items import auto_done, reopen_item, upsert
+from ...core.timeutil import iso, utcnow
+from ...storage import db, secrets
+from . import client
 
 # The searches for the Action tab, highest reason first: upsert keeps the higher reason.
 ACTION_SEARCHES = (
@@ -28,14 +30,14 @@ class Api:
 
     def __init__(self, conn, token):
         self.base = db.get_setting(conn, "forgejo_url")
-        self.host = forgejo.host(self.base)
+        self.host = client.host(self.base)
         self.token = token
 
     def one(self, path, **params):
-        return forgejo.get(self.base, self.token, path, params)
+        return client.get(self.base, self.token, path, params)
 
     def all(self, path, **params):
-        return forgejo.get_all(self.base, self.token, path, params)
+        return client.get_all(self.base, self.token, path, params)
 
     def repo(self, full_name):
         return f"{self.host}/{full_name}"
@@ -79,8 +81,8 @@ def sync_notifications(conn, api, watched):
     """Put the notifications of watched repos in the Watch tab. Return the unread keys."""
     days = db.get_setting(conn, "new_item_days", float)
     since = db.get_meta(conn, "forgejo_notifications_since") \
-        or _iso(_utcnow() - timedelta(days=days))
-    started = _utcnow()
+        or iso(utcnow() - timedelta(days=days))
+    started = utcnow()
     threads = {t["id"]: t for t in api.all("notifications", all="true", since=since)}
     for t in api.all("notifications"):
         threads[t["id"]] = t
@@ -94,14 +96,14 @@ def sync_notifications(conn, api, watched):
         if info["repo"] in watched:
             upsert(conn, dict(info, category="watch"))
     # Step back 10 minutes so that no update falls between two syncs.
-    db.set_meta(conn, "forgejo_notifications_since", _iso(started - timedelta(minutes=10)))
+    db.set_meta(conn, "forgejo_notifications_since", iso(started - timedelta(minutes=10)))
     return unread
 
 
 def sync_action(conn, api, watched):
     """Search is the source of truth. An item that leaves all searches is done."""
     days = db.get_setting(conn, "new_item_days", float)
-    since = _iso(_utcnow() - timedelta(days=days))
+    since = iso(utcnow() - timedelta(days=days))
     found, assigned = set(), set()
     for reason, params in ACTION_SEARCHES:
         if reason == "mention":
@@ -115,7 +117,7 @@ def sync_action(conn, api, watched):
                 (item["key"],)).fetchone()
             if it["state"] != "open":
                 if row is not None:
-                    _auto_done(conn, item["key"], "action", it["state"])
+                    auto_done(conn, item["key"], "action", it["state"])
                 continue
             found.add(item["key"])
             if reason == "assign":
@@ -125,7 +127,7 @@ def sync_action(conn, api, watched):
                    reopen=False)
             # Open it again after the app closed it, for example on a new review request.
             if row is not None and row["done"] and row["auto_done"]:
-                _reopen(conn, item["key"], "action")
+                reopen_item(conn, item["key"], "action")
     where, host = _in_host(api)
     for row in conn.execute(
             f"SELECT key, done, assigned, reason FROM items WHERE category = 'action' AND {where}",
@@ -133,7 +135,7 @@ def sync_action(conn, api, watched):
         # The mention search sees recent updates only. An older mention stays until you
         # mark it done, or until the issue closes.
         if row["key"] not in found and not row["done"] and row["reason"] != "mention":
-            _auto_done(conn, row["key"], "action")
+            auto_done(conn, row["key"], "action")
         now = int(row["key"] in assigned)
         if now != row["assigned"]:
             conn.execute("UPDATE items SET assigned = ? WHERE key = ? AND category = 'action'",
@@ -158,12 +160,12 @@ def sync_mine(conn, api, unread):
             f"SELECT key FROM items WHERE category = 'mine' AND done = 0 AND {where}",
             (host,)).fetchall():
         if row["key"] not in found:
-            _auto_done(conn, row["key"], "mine", "closed")
+            auto_done(conn, row["key"], "mine", "closed")
 
 
 def sync(conn):
     """Run the Codeberg part of the sync. Return None when you saved no token."""
-    token = db.get_token()
+    token = secrets.get_token(client.TOKEN_NAME)
     if not token:
         return None
     api = Api(conn, token)
@@ -178,7 +180,7 @@ def sync(conn):
 
 def load_repo_candidates(conn):
     """Add the Codeberg repos you watch and the repos you can push to (not watched yet)."""
-    token = db.get_token()
+    token = secrets.get_token(client.TOKEN_NAME)
     if not token:
         return
     api = Api(conn, token)

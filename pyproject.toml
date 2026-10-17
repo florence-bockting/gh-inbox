@@ -18,8 +18,8 @@ docs = ["mkdocs<2", "mkdocs-material>=9.5"]
 [project.scripts]
 oss-inbox = "ossinbox.cli:main"
 
-[tool.setuptools]
-packages = ["ossinbox"]
+[tool.setuptools.packages.find]
+include = ["ossinbox*"]
 
 [tool.setuptools.package-data]
-ossinbox = ["static/*"]
+"ossinbox.ui" = ["static/*"]

@@ -1,5 +1,5 @@
 site_name: oss-inbox
-site_description: A local inbox for your GitHub notifications, built on the gh CLI
+site_description: A local inbox for your notifications from GitHub and Codeberg
 site_url: https://florence-bockting.codeberg.page/oss-inbox/
 repo_url: https://codeberg.org/florence-bockting/oss-inbox
 repo_name: florence-bockting/oss-inbox

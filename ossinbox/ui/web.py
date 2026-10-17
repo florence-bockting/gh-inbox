@@ -7,7 +7,9 @@ from wsgiref.simple_server import make_server as wsgi_server
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException
 
-from . import db, osdeps, state, sync
+from .. import osdeps
+from ..services import actions, sync
+from ..storage import db
 
 HOST, PORT = "127.0.0.1", 8765
 # Each POST must send this header. A browser cannot add it on a cross-site request
@@ -60,7 +62,7 @@ def create_app():
     @app.get("/api/status")
     def status():
         with lock:
-            return state.status(conn)
+            return actions.status(conn)
 
     # make_server sets STOP. The test app has no server to stop.
     @app.post("/api/stop")
@@ -96,7 +98,7 @@ def create_app():
                 return {"error": "bad json"}, 400
         with lock:
             try:
-                state.apply(conn, action, body)
+                actions.apply(conn, action, body)
             except (KeyError, ValueError) as exc:
                 return {"error": str(exc)}, 400
         return {"ok": True}

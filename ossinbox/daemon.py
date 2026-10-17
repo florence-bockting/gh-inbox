@@ -5,7 +5,10 @@ import sys
 import threading
 import time
 
-from . import db, reminders, sync, web
+from .core import items
+from .services import reminders, sync
+from .storage import db
+from .ui import web
 
 TICK_SECONDS = 60
 log = logging.getLogger(__name__)
@@ -22,7 +25,7 @@ def poll_round(conn, last_sync):
             last_sync = time.time()
     else:
         # Stall times grow without a sync; check them every tick.
-        sync.refresh_stalled(conn)
+        items.refresh_stalled(conn)
     reminders.rate_warning(conn)
     sent = reminders.run(conn)
     if sent:

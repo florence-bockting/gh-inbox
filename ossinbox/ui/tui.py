@@ -23,7 +23,10 @@ from textual.widgets import (
     TabPane,
 )
 
-from . import db, state, sync
+from ..core.timeutil import parse_iso
+from ..providers import base, registry
+from ..services import actions, sync
+from ..storage import db
 
 REASONS = {
     "review_requested": ("review", "bold cyan"), "mention": ("mention", "bold magenta"),
@@ -45,7 +48,7 @@ FILTER_FIELDS = {
 }
 FIELD_PROMPTS = {"repo": "All repos", "kind": "All kinds", "reason": "All types"}
 FIELD_LABELS = {
-    "repo": db.repo_label,
+    "repo": registry.repo_label,
     "kind": lambda v: KINDS.get(v, (v,))[0],
     "reason": lambda v: REASON_LABELS.get(v, v),
 }
@@ -66,17 +69,17 @@ CODEBERG_STYLE = "bold #2185d0"
 
 def repo_cell(repo, number=None):
     """The short repo name with a prefix in front: GH for GitHub, CB for Codeberg."""
-    name = db.short_repo(repo)
+    name = base.short_repo(repo)
     if number:
         name += f"#{number}"
-    style = CODEBERG_STYLE if db.forge_host(repo) else "dim"
-    return Text.assemble((db.forge_prefix(repo) + " ", style), name)
+    style = CODEBERG_STYLE if base.repo_host(repo) else "dim"
+    return Text.assemble((registry.provider_for(repo).prefix(repo) + " ", style), name)
 
 
 def ago(iso):
     if not iso:
         return ""
-    s = (datetime.now(timezone.utc) - db.parse_iso(iso)).total_seconds()
+    s = (datetime.now(timezone.utc) - parse_iso(iso)).total_seconds()
     if s < 3600:
         return f"{max(1, round(s / 60))}m"
     if s < 86400:
@@ -208,7 +211,7 @@ class InboxApp(App):
 
     def do(self, action, body):
         try:
-            state.apply(self.conn, action, body)
+            actions.apply(self.conn, action, body)
         except (KeyError, ValueError) as exc:
             self.notify(str(exc), severity="error")
         self.refresh_all()
@@ -216,7 +219,7 @@ class InboxApp(App):
     # ---- rendering ----------------------------------------------------------
 
     def refresh_all(self):
-        st = state.status(self.conn)
+        st = actions.status(self.conn)
         parts = [f"@{st['login']}" if st["login"] else "not synced yet",
                  f"synced {ago(st['last_sync'])} ago" if st["last_sync"] else "never synced",
                  "poller running" if st["poller_running"] else "[b red]poller not running[/]"]
@@ -384,7 +387,7 @@ class InboxApp(App):
 
     @work(thread=True, exclusive=True)
     def action_sync(self):
-        self.call_from_thread(self.notify, "Syncing with GitHub…")
+        self.call_from_thread(self.notify, "Syncing...")
         result = sync.sync(db.connect())
         self.call_from_thread(self.notify, f"Sync: {result}",
                               severity="information" if result == "ok" else "warning")
@@ -396,7 +399,7 @@ class InboxApp(App):
             webbrowser.open(it["url"])
         elif it and it.get("full_name"):
             name = it["full_name"]
-            webbrowser.open(f"https://{name}" if db.forge_host(name) else f"https://github.com/{name}")
+            webbrowser.open(registry.provider_for(name).web_url(name))
 
     def action_done(self):
         it = self.current()
