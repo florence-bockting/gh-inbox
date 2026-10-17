@@ -208,10 +208,12 @@ def list_items(conn, category, show_done=False, oldest_first=False):
     sql += (f" ORDER BY priority DESC, "
             f"{when} {'ASC' if oldest_first else 'DESC'}")
     from . import notes  # notes imports db
+    from ..providers import registry  # the providers import db
     saved = notes.load(get_setting(conn, "notes_file"))
     items = [dict(r) for r in conn.execute(sql, (category,))]
     for it in items:
         it["note"] = (saved.get(it["key"]) or {}).get("note") or ""
+        it["provider"] = registry.provider_for(it["repo"]).name
     return items
 
 

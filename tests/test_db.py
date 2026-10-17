@@ -24,3 +24,17 @@ def test_move_old_data_keeps_new_folder(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DATA_DIR", new)
     db.move_old_data()
     assert old.exists()
+
+
+def test_list_items_provider(tmp_path, monkeypatch):
+    from ossinbox.core import items as core_items
+    monkeypatch.setattr(db, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "state.db")
+    conn = db.connect()
+    db.set_setting(conn, "notes_file", str(tmp_path / "notes.csv"))
+    for repo in ("owner/repo", "codeberg.org/owner/repo"):
+        core_items.upsert(conn, {"key": repo + "#1", "category": "mine", "repo": repo,
+                                 "number": 1, "kind": "issue",
+                                 "updated_at": "2026-10-10T00:00:00Z"})
+    got = {i["repo"]: i["provider"] for i in db.list_items(conn, "mine")}
+    assert got == {"owner/repo": "GitHub", "codeberg.org/owner/repo": "Codeberg"}

@@ -199,8 +199,9 @@ Each item has a **PR**, **Issue** or **Draft PR** label. In Action, an item
 can have a **mention** tag and an **assigned** tag at the same time. The two tags
 have different colors.
 
-You can **filter** Action, Watch, My work and ToDo by repo and kind. You can also
-filter Action by type. In My work, you can also hide the stalled items, or show
+You can **filter** Action, Watch, My work and ToDo by platform (GitHub or
+Codeberg), repo and kind. You can also filter Action by type. In My work, you
+can also hide the stalled items, or show
 only the PRs with an overdue review.
 
 Items are **ordered** by default according to recency with the most recent item

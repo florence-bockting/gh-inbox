@@ -48,10 +48,11 @@ const codebergIcon = (title) => `<span class="forge codeberg" title="${esc(title
 const forgeIcon = (repo) => forgeHost(repo) ? codebergIcon(forgeHost(repo)) : GITHUB_ICON;
 // Filters per tab: [field, label of the "all" option, label of one value].
 const FILTER_FIELDS = {
-  action: ["repo", "kind", "reason"], watch: ["repo", "kind"], mine: ["repo", "kind"],
-  todo: ["repo", "kind"],
+  action: ["provider", "repo", "kind", "reason"], watch: ["provider", "repo", "kind"],
+  mine: ["provider", "repo", "kind"], todo: ["provider", "repo", "kind"],
 };
 const FIELD_LABELS = {
+  provider: ["All platforms", (v) => v],
   repo: ["All repos", repoName], kind: ["All kinds", (v) => KINDS[v] || v],
   reason: ["All types", (v) => REASONS[v] || v],
 };

@@ -43,11 +43,13 @@ REASON_LABELS = {
 KINDS = {"pr": ("PR", "bold #b48cf0"), "issue": ("Issue", "bold green"), "other": ("Other", "dim")}
 # Filters per tab, and the label of the "all" option of each filter.
 FILTER_FIELDS = {
-    "action": ["repo", "kind", "reason"], "watch": ["repo", "kind"],
-    "mine": ["repo", "kind"], "todo": ["repo", "kind"],
+    "action": ["provider", "repo", "kind", "reason"], "watch": ["provider", "repo", "kind"],
+    "mine": ["provider", "repo", "kind"], "todo": ["provider", "repo", "kind"],
 }
-FIELD_PROMPTS = {"repo": "All repos", "kind": "All kinds", "reason": "All types"}
+FIELD_PROMPTS = {"provider": "All platforms", "repo": "All repos", "kind": "All kinds",
+                 "reason": "All types"}
 FIELD_LABELS = {
+    "provider": str,
     "repo": registry.repo_label,
     "kind": lambda v: KINDS.get(v, (v,))[0],
     "reason": lambda v: REASON_LABELS.get(v, v),
