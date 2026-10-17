@@ -27,6 +27,8 @@ WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE. */
 const ICONS = {
+  github: svg(`<path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/>`),
+  mountain: svg(`<path d="m8 3 4 8 5-5 5 15H2L8 3z"/>`),
   note: svg(`<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/>`),
   done: svg(`<path d="M5 12.5l4.5 4.5L19 7.5"/>`),
   // alarm-clock, octagon-x and ellipsis come from Lucide v0.460.0. See the license below.
@@ -35,13 +37,22 @@ const ICONS = {
   ellipsis: svg(`<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>`),
   undo: svg(`<path d="M4 9h11a5 5 0 0 1 0 10H9"/><path d="M8 5L4 9l4 4"/>`),
 };
+// A Codeberg repo has the host as prefix: "codeberg.org/owner/repo". GitHub: "owner/repo".
+const forgeHost = (repo) => { const p = String(repo).split("/"); return p.length === 3 ? p[0] : null; };
+// GH for GitHub, CB for Codeberg, FJ for another Forgejo server.
+const forgePrefix = (repo) => !forgeHost(repo) ? "GH" : forgeHost(repo) === "codeberg.org" ? "CB" : "FJ";
+const repoName = (repo) => forgePrefix(repo) + " " +
+  (forgeHost(repo) ? String(repo).split("/").slice(1).join("/") : repo);
+const GITHUB_ICON = `<span class="forge github" title="GitHub">${ICONS.github}</span>`;
+const codebergIcon = (title) => `<span class="forge codeberg" title="${esc(title)}">${ICONS.mountain}</span>`;
+const forgeIcon = (repo) => forgeHost(repo) ? codebergIcon(forgeHost(repo)) : GITHUB_ICON;
 // Filters per tab: [field, label of the "all" option, label of one value].
 const FILTER_FIELDS = {
   action: ["repo", "kind", "reason"], watch: ["repo", "kind"], mine: ["repo", "kind"],
   todo: ["repo", "kind"],
 };
 const FIELD_LABELS = {
-  repo: ["All repos", (v) => v], kind: ["All kinds", (v) => KINDS[v] || v],
+  repo: ["All repos", repoName], kind: ["All kinds", (v) => KINDS[v] || v],
   reason: ["All types", (v) => REASONS[v] || v],
 };
 let tab = location.hash.slice(1) || "action";
@@ -87,7 +98,8 @@ function renderTabs() {
 
 function renderStatus() {
   const parts = [];
-  if (status.login) parts.push("@" + esc(status.login));
+  if (status.login) parts.push(GITHUB_ICON + "@" + esc(status.login));
+  if (status.forgejo_login) parts.push(codebergIcon("Codeberg") + "@" + esc(status.forgejo_login));
   parts.push(status.last_sync ? "synced " + ago(status.last_sync) : "never synced");
   parts.push(status.poller_running ? "poller running"
              : `<span class="bad">poller not running</span>`);
@@ -106,7 +118,7 @@ function renderStatus() {
 }
 
 function itemRow(it) {
-  const ref = it.number ? `${it.repo}#${it.number}` : it.repo;
+  const ref = it.number ? `${repoName(it.repo)}#${it.number}` : repoName(it.repo);
   const kind = it.state === "draft" ? "Draft PR" : KINDS[it.kind] || it.kind;
   const badges = [`<span class="badge kind kind-${esc(it.kind)}">${esc(kind)}</span>`];
   if (it.tab !== "mine")
@@ -163,7 +175,7 @@ function itemRow(it) {
     title="${starLabel}" aria-label="${starLabel}">${it.priority ? "★" : "☆"}</button>`;
   return `<div class="row ${it.done ? "done" : ""} ${it.priority ? "high" : ""} ${it.waiting_for ? "overdue" : ""}">
     <div><div class="title">${star}${badges.join("")}<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title)}</a></div>
-    <div class="meta">${esc(ref)} · ${it.author ? "by " + esc(it.author) + " · " : ""}${when}</div>
+    <div class="meta">${forgeIcon(it.repo)}${esc(ref)} · ${it.author ? "by " + esc(it.author) + " · " : ""}${when}</div>
     ${it.note ? `<div class="note" title="${esc(it.note)}">${esc(it.note)}</div>` : ""}</div>
     <div class="controls">${controls}</div>
     <div class="note-edit" data-editor="${key}" hidden>
@@ -206,15 +218,15 @@ async function renderItems() {
 async function renderRepos() {
   const repos = await get("/api/repos");
   $("#main").innerHTML = `<div class="toolbar">
-      <input id="newRepo" placeholder="owner/repo">
+      <input id="newRepo" placeholder="owner/repo or Codeberg URL">
       <button class="btn" id="addRepo">Add and watch</button>
-      <button class="btn" id="loadRepos">Load my GitHub repos</button>
+      <button class="btn" id="loadRepos">Load my repos</button>
       <span class="grow"></span><input id="repoFilter" placeholder="Filter">
     </div><div class="error" id="repoError"></div>
     <div class="list" id="repoList">${repos.map((r) => `<div class="row" data-name="${esc(r.full_name.toLowerCase())}">
       <div><label><input type="checkbox" data-watch="${esc(r.full_name)}" ${r.watched ? "checked" : ""}>
-      <b>${esc(r.full_name)}</b></label><div class="meta">${esc(r.source || "")}${r.watch_since ? " · watched since " + ago(r.watch_since) : ""}</div></div>
-      <div></div></div>`).join("") || `<div class="empty">No repos yet. Add one, or load your GitHub repos.</div>`}</div>`;
+      ${forgeIcon(r.full_name)}<b>${esc(repoName(r.full_name))}</b></label><div class="meta">${esc(r.source || "")}${r.watch_since ? " · watched since " + ago(r.watch_since) : ""}</div></div>
+      <div></div></div>`).join("") || `<div class="empty">No repos yet. Add one, or load your repos.</div>`}</div>`;
 }
 
 function renderSettings() {
@@ -233,6 +245,16 @@ function renderSettings() {
     <label for="set-notes_file">Notes file</label>
     <input type="text" class="wide" id="set-notes_file" data-setting="notes_file" value="${esc(s.notes_file)}">
     <span></span><span class="help wide">The CSV file with your notes. A change moves the file. The app refuses if a file exists at the new path.</span>
+    <label for="set-forgejo_url">Codeberg URL</label>
+    <input type="text" class="wide" id="set-forgejo_url" data-setting="forgejo_url" value="${esc(s.forgejo_url)}">
+    <span></span><span class="help wide">Codeberg, or another Forgejo server.</span>
+    <label for="forgejoToken">Codeberg token</label>
+    <span class="wide"><input type="password" id="forgejoToken" autocomplete="off"
+      placeholder="${status.forgejo_token ? "saved · type a new token to replace it" : "not set"}">
+      <button class="btn" id="saveToken">Save token</button>
+      ${status.forgejo_token ? `<button class="btn" id="removeToken">Remove token</button>` : ""}</span>
+    <span></span><span class="help wide">An access token with read access to notification, issue, repository and user.
+      The app saves it in a file that only you can read. Without a token, the app syncs GitHub only.</span>
   </div><div class="settings-actions">
     <button class="btn primary" id="applySettings" disabled>Apply</button>
     <button class="btn" id="resetSettings">Reset to defaults</button>
@@ -324,6 +346,14 @@ document.addEventListener("click", async (e) => {
     t.disabled = true; t.textContent = "Loading…";
     try { await post("/api/repos/load"); render(); }
     catch (err) { $("#repoError").textContent = err.message; t.disabled = false; }
+  }
+  if (t.id === "saveToken" || t.id === "removeToken") {
+    try {
+      await post("/api/forgejo/token", {token: t.id === "saveToken" ? $("#forgejoToken").value : ""});
+      await render();
+      $("#setNote").textContent = t.id === "saveToken" ? "Token saved." : "Token removed.";
+    } catch (err) { $("#setError").textContent = err.message; }
+    return;
   }
   if (t.id === "resetSettings") {
     for (const el of document.querySelectorAll("[data-setting]")) el.value = status.defaults[el.dataset.setting];

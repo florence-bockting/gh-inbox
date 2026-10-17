@@ -4,7 +4,7 @@
     This app is a prototype in a test phase. Feedback is welcome: please
     [open an issue](https://codeberg.org/florence-bockting/oss-inbox/issues).
 
-A local inbox for your GitHub notifications. It separates the items that need
+A local inbox for your GitHub and Codeberg notifications. It separates the items that need
 your action from the items that you only want to follow. It reminds you again
 when you do not act.
 

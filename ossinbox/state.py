@@ -2,7 +2,7 @@
 
 import time
 
-from . import db, notes, sync
+from . import db, forgejo, notes, sync
 
 # The poller writes a heartbeat each round. Older than this means it is not running.
 HEARTBEAT_MAX_AGE = 180
@@ -16,6 +16,22 @@ def _hours(value):
     if hours < 0:
         raise ValueError("hours must be 0 or more")
     return hours
+
+
+def repo_name(conn, text):
+    """Turn "owner/repo" or a repo URL into the stored name.
+
+    GitHub: "owner/repo". Codeberg: "codeberg.org/owner/repo".
+    """
+    name = text.strip().removeprefix("https://").removeprefix("http://").strip("/")
+    name = name.removesuffix(".git").removeprefix("github.com/")
+    host = forgejo.host(db.get_setting(conn, "forgejo_url"))
+    parts = name.split("/")
+    if len(parts) == 3 and parts[0] == host and all(parts):
+        return name
+    if len(parts) == 2 and all(parts):
+        return name
+    raise ValueError(f"use the form owner/repo, or a URL on github.com or {host}")
 
 
 def apply(conn, action, body):
@@ -42,10 +58,9 @@ def apply(conn, action, body):
     elif action == "repos/watch":
         db.set_watched(conn, body["full_name"], bool(body["watched"]))
     elif action == "repos/add":
-        name = body["full_name"].strip().removeprefix("https://github.com/").strip("/")
-        if name.count("/") != 1:
-            raise ValueError("use the form owner/repo")
-        db.add_repo(conn, name, watched=True)
+        db.add_repo(conn, repo_name(conn, body["full_name"]), watched=True)
+    elif action == "forgejo/token":
+        db.set_token(body.get("token"))
     elif action == "settings":
         for key, value in body.items():
             db.set_setting(conn, key, value)
@@ -59,6 +74,9 @@ def status(conn):
     running = bool(beat) and time.time() - float(beat) < HEARTBEAT_MAX_AGE
     return {
         "login": db.get_meta(conn, "login"),
+        "forgejo_login": db.get_meta(conn, "forgejo_login") if db.get_token() else None,
+        # Only whether a token exists. The token itself never leaves the file.
+        "forgejo_token": bool(db.get_token()),
         "last_sync": db.get_meta(conn, "last_sync"),
         "last_error": db.get_meta(conn, "last_error") or "",
         "poller_running": running,

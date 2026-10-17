@@ -250,6 +250,7 @@ can change any time.
 | Watch history (days) | 14 |
 | Pop-ups on (1) / off (0) | 1 |
 | Notes file | `~/oss-inbox/notes.csv` |
+| Codeberg URL | `https://codeberg.org` |
 
 ## Work with items
 
@@ -302,6 +303,42 @@ This applies to your own open issues and PRs.
 - To hide the stalled items, use the filter in My work. In the terminal UI,
   press `t`.
 - A stalled item appears first in the list of the My work tab.
+
+## Codeberg
+
+The app also syncs Codeberg when you save a Codeberg access token.
+
+1. On Codeberg, open https://codeberg.org/user/settings/applications.
+2. Create a token with read access to **notification**, **issue**, **repository** and **user**.
+3. In the app, open the **Settings** tab.
+4. Paste the token in **Codeberg token**. Then click **Save token**.
+   In the terminal UI, select **Codeberg token** and press `Enter`.
+
+The app saves the token in `~/.local/share/oss-inbox/forgejo.token`. Only you can
+read this file. The app never shows the token again.
+
+An icon and a prefix in front of each repo show where the item comes from:
+`GH` for GitHub, `CB` for Codeberg. The terminal UI shows only the prefix.
+
+To add a Codeberg repo, paste its URL in the **Repos** tab, for example
+`https://codeberg.org/owner/repo`.
+
+The Codeberg sync is a first version. It fills the tabs in this way:
+
+| Tab | Codeberg items |
+| :-- | :-- |
+| Action | Open PRs with your review request, open items that mention you, open items assigned to you. Watched repos only. |
+| Watch | The other notifications of watched repos |
+| My work | Your open issues and PRs |
+
+These GitHub features do not work for Codeberg yet:
+
+- The ToDo tab from a mention of yourself.
+- A new mention on a done item does not open it again.
+- "In review" and "review overdue" on your PRs.
+- New issues and PRs in watched repos without a notification.
+
+To use another Forgejo server, change **Codeberg URL** in the settings.
 
 ## GitHub API use
 

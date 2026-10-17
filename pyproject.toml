@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "oss-inbox"
 version = "0.3.1"
-description = "A local interface for GitHub notifications, built on the gh CLI"
+description = "A local interface for notifications of Codeberg and GitHub"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]

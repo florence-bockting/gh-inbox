@@ -16,6 +16,8 @@
 | `ossinbox/gh.py` | Wrapper for `gh api`. Only GET requests. |
 | `ossinbox/db.py` | SQLite schema, settings and queries |
 | `ossinbox/sync.py` | Gets data from GitHub and sorts it into the tabs |
+| `ossinbox/forgejo.py` | Small client for the Codeberg (Forgejo) API. Only GET requests. |
+| `ossinbox/sync_forgejo.py` | Gets data from Codeberg and sorts it into the tabs |
 | `ossinbox/reminders.py` | Finds the items that need a pop-up now |
 | `ossinbox/notes.py` | Reads and writes the notes CSV |
 | `ossinbox/osdeps.py` | All code that differs between Linux, macOS and Windows |

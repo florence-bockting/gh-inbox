@@ -185,7 +185,7 @@ def sync_review_requests(conn, watched):
     # A request that left the search result: you reviewed, or it was withdrawn.
     for row in conn.execute(
             "SELECT key FROM items WHERE category = 'action' AND done = 0 "
-            "AND reason = 'review_requested'").fetchall():
+            f"AND reason = 'review_requested' AND {db.GITHUB_ONLY}").fetchall():
         if row["key"] not in found:
             _auto_done(conn, row["key"], "action")
     return found
@@ -202,7 +202,8 @@ def sync_mentions(conn, watched, touched):
     _sync_search(conn, watched, touched, f"mentions:@me+updated:>={since}", "mention")
     assigned = _sync_search(conn, watched, touched, "assignee:@me", "assign")
     for row in conn.execute(
-            "SELECT key, done, assigned FROM items WHERE category = 'action'").fetchall():
+            f"SELECT key, done, assigned FROM items WHERE category = 'action' "
+            f"AND {db.GITHUB_ONLY}").fetchall():
         now = row["key"] in assigned
         if now == bool(row["assigned"]):
             continue
@@ -261,7 +262,7 @@ def check_action_items(conn, login, touched):
     """
     rows = conn.execute(
         "SELECT * FROM items WHERE category = 'action' AND kind IN ('issue', 'pr') "
-        "AND reason IN ('mention', 'team_mention', 'assign')").fetchall()
+        f"AND reason IN ('mention', 'team_mention', 'assign') AND {db.GITHUB_ONLY}").fetchall()
     tag = f"@{login.lower()}"
     for row in rows:
         if row["done"] and row["key"] not in touched:
@@ -336,8 +337,8 @@ def check_todos(conn):
     A close does not mark a to-do done: a follow-up task can outlive a merged PR.
     """
     for row in conn.execute(
-            "SELECT key, repo, number FROM items WHERE category = 'todo' AND done = 0"
-            ).fetchall():
+            f"SELECT key, repo, number FROM items WHERE category = 'todo' AND done = 0 "
+            f"AND {db.GITHUB_ONLY}").fetchall():
         _, issue = db.cached_get(conn, f"repos/{row['repo']}/issues/{row['number']}",
                                  keep_body=True)
         conn.execute(
@@ -351,7 +352,7 @@ def check_todos(conn):
 def sync_new_items(conn, login):
     days = db.get_setting(conn, "new_item_days", float)
     for repo in db.list_repos(conn):
-        if not repo["watched"]:
+        if not repo["watched"] or db.forge_host(repo["full_name"]):
             continue
         cutoff = db.parse_iso(repo["watch_since"]) - timedelta(days=days)
         # A shorter watch history removes the new items that are now too old.
@@ -403,7 +404,8 @@ def sync_mine(conn, unread):
             "UPDATE items SET done = 0, done_at = NULL, auto_done = 0 "
             "WHERE key = ? AND category = 'mine' AND auto_done = 1", (key,))
     for row in conn.execute(
-            "SELECT key FROM items WHERE category = 'mine' AND done = 0").fetchall():
+            f"SELECT key FROM items WHERE category = 'mine' AND done = 0 "
+            f"AND {db.GITHUB_ONLY}").fetchall():
         if row["key"] not in found:
             _auto_done(conn, row["key"], "mine", "closed")
 
@@ -443,7 +445,8 @@ def refresh_waiting(conn, login):
     now = _utcnow()
     for row in conn.execute(
             "SELECT key, repo, number, updated_at, review_waits, review_checked, waiting_for "
-            "FROM items WHERE category = 'mine' AND kind = 'pr' AND done = 0").fetchall():
+            f"FROM items WHERE category = 'mine' AND kind = 'pr' AND done = 0 "
+            f"AND {db.GITHUB_ONLY}").fetchall():
         waits = {}
         if days > 0:
             changed, req = db.cached_get(
@@ -494,13 +497,19 @@ def refresh_stalled(conn):
 # ---- repo candidates --------------------------------------------------------
 
 def load_repo_candidates(conn):
-    """Add the repos you watch on GitHub and the repos you can push to (not watched yet)."""
+    """Add the repos you watch and the repos you can push to (not watched yet).
+
+    GitHub always. Codeberg only when you saved a token.
+    """
+    from . import sync_forgejo  # sync_forgejo imports sync
+
     for r in gh.api_items("user/subscriptions?per_page=100"):
         db.add_repo(conn, r["full_name"], source="github-watch")
     for r in gh.api_items(
             "user/repos?affiliation=owner,collaborator,organization_member&per_page=100"):
         db.add_repo(conn, r["full_name"], source="member")
     conn.commit()
+    sync_forgejo.load_repo_candidates(conn)
 
 
 # ---- rate limit -------------------------------------------------------------
@@ -551,42 +560,62 @@ def estimate_per_hour(conn):
 
 # ---- entry point ------------------------------------------------------------
 
+def _sync_github(conn):
+    """Run the GitHub part of the sync. Return "ok" or "paused: ...". Raise on a failure."""
+    # A 304 on `user` is free and still reports the rate limit.
+    _, user = db.cached_get(conn, "user", keep_body=True)
+    login = user["login"]
+    db.set_meta(conn, "login", login)
+    start = _store_rate(conn)
+    if start and start["remaining"] < PAUSE_SHARE * start["limit"] \
+            and time.time() < start["reset"]:
+        db.set_meta(conn, "paused_until", str(start["reset"]))
+        return "paused: few API requests left until " + _clock(start["reset"])
+    db.set_meta(conn, "paused_until", "")
+    watched = db.watched_repos(conn)
+    unread, touched = sync_notifications(conn, watched)
+    sync_review_requests(conn, watched)
+    sync_mentions(conn, watched, touched)
+    check_action_items(conn, login, touched)
+    check_todos(conn)
+    sync_new_items(conn, login)
+    sync_mine(conn, unread)
+    refresh_waiting(conn, login)
+    conn.commit()
+    db.cached_get(conn, "user", keep_body=True)
+    end = _store_rate(conn)
+    if start and end and start["reset"] == end["reset"]:
+        db.set_meta(conn, "last_sync_cost", str(start["remaining"] - end["remaining"]))
+    return "ok"
+
+
 def sync(conn):
-    """Run one full sync. Return a status string. Only one sync runs at a time."""
+    """Run one full sync. Return a status string. Only one sync runs at a time.
+
+    GitHub and Codeberg sync one after the other. A failure of one does not stop the other.
+    """
+    from . import sync_forgejo  # sync_forgejo imports sync
+
     db.DATA_DIR.mkdir(parents=True, exist_ok=True)
     with osdeps.try_lock(db.DATA_DIR / "sync.lock") as locked:
         if not locked:
             return "busy"
-        try:
-            # A 304 on `user` is free and still reports the rate limit.
-            _, user = db.cached_get(conn, "user", keep_body=True)
-            login = user["login"]
-            db.set_meta(conn, "login", login)
-            start = _store_rate(conn)
-            if start and start["remaining"] < PAUSE_SHARE * start["limit"] \
-                    and time.time() < start["reset"]:
-                db.set_meta(conn, "paused_until", str(start["reset"]))
-                return "paused: few API requests left until " + _clock(start["reset"])
-            db.set_meta(conn, "paused_until", "")
-            watched = db.watched_repos(conn)
-            unread, touched = sync_notifications(conn, watched)
-            sync_review_requests(conn, watched)
-            sync_mentions(conn, watched, touched)
-            check_action_items(conn, login, touched)
-            check_todos(conn)
-            sync_new_items(conn, login)
-            sync_mine(conn, unread)
-            refresh_waiting(conn, login)
-            conn.commit()
-            refresh_stalled(conn)
-            db.cached_get(conn, "user", keep_body=True)
-            end = _store_rate(conn)
-            if start and end and start["reset"] == end["reset"]:
-                db.set_meta(conn, "last_sync_cost", str(start["remaining"] - end["remaining"]))
-            db.set_meta(conn, "last_sync", db.now_iso())
-            db.set_meta(conn, "last_error", "")
-            return "ok"
-        except Exception as exc:  # noqa: BLE001 - report every failure in the UI
-            conn.rollback()
-            db.set_meta(conn, "last_error", f"{db.now_iso()} {exc}")
-            return f"error: {exc}"
+        results, errors = [], []
+        for name, run in (("GitHub", _sync_github), ("Codeberg", sync_forgejo.sync)):
+            try:
+                result = run(conn)
+            except Exception as exc:  # noqa: BLE001 - report every failure in the UI
+                conn.rollback()
+                errors.append(f"{name}: {exc}")
+                continue
+            if result and result != "ok":
+                results.append(result)
+        refresh_stalled(conn)
+        if errors:
+            db.set_meta(conn, "last_error", f"{db.now_iso()} {'; '.join(errors)}")
+            return "error: " + "; ".join(errors)
+        if results:
+            return results[0]  # paused
+        db.set_meta(conn, "last_sync", db.now_iso())
+        db.set_meta(conn, "last_error", "")
+        return "ok"

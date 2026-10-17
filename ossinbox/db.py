@@ -22,9 +22,14 @@ DEFAULT_SETTINGS = {
     "notify": "1",
     "new_item_days": "14",
     "notes_file": "~/oss-inbox/notes.csv",
+    "forgejo_url": "https://codeberg.org",
 }
 # The other settings are numeric.
-TEXT_SETTINGS = {"notes_file"}
+TEXT_SETTINGS = {"notes_file", "forgejo_url"}
+
+# A GitHub repo is "owner/repo". A Codeberg repo has the host as prefix:
+# "codeberg.org/owner/repo". So the same name on both stays two repos.
+GITHUB_ONLY = "repo NOT LIKE '%/%/%'"
 
 TABS = ("action", "watch", "mine", "todo")
 # The tab that shows an item: the tab you moved it to, or the tab that the sync chose.
@@ -92,6 +97,57 @@ def now_iso():
 
 def parse_iso(value):
     return datetime.fromisoformat(value) if value else None
+
+
+def forge_host(repo):
+    """The host of a Codeberg repo, for example "codeberg.org". None for a GitHub repo."""
+    parts = repo.split("/")
+    return parts[0] if len(parts) == 3 else None
+
+
+def short_repo(repo):
+    """The repo name without the host: "owner/repo"."""
+    return repo.split("/", 1)[1] if forge_host(repo) else repo
+
+
+def forge_prefix(repo):
+    """GH for GitHub, CB for Codeberg, FJ for another Forgejo server."""
+    host = forge_host(repo)
+    return "GH" if host is None else "CB" if host == "codeberg.org" else "FJ"
+
+
+def repo_label(repo):
+    """The repo name in the UIs: "GH owner/repo" or "CB owner/repo"."""
+    return f"{forge_prefix(repo)} {short_repo(repo)}"
+
+
+# ---- Codeberg token ---------------------------------------------------------
+
+def token_path():
+    return DATA_DIR / "forgejo.token"
+
+
+def get_token():
+    """The Codeberg access token, or "" when you did not save one."""
+    try:
+        return token_path().read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        return ""
+
+
+def set_token(value):
+    """Save the token in a file that only you can read. An empty value removes the file."""
+    path = token_path()
+    value = (value or "").strip()
+    if not value:
+        path.unlink(missing_ok=True)
+        return
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(value)
+    # An existing file keeps its old mode on O_CREAT.
+    os.chmod(path, 0o600)
 
 
 def move_old_data():

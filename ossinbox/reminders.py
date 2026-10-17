@@ -55,7 +55,8 @@ def due(conn):
 
 
 def _message(row):
-    ref = f"{row['repo']}#{row['number']}" if row["number"] else row["repo"]
+    repo = db.repo_label(row["repo"])
+    ref = f"{repo}#{row['number']}" if row["number"] else repo
     if row["tab"] == "mine" and row["waiting_for"]:
         icon = ICONS["waiting"]
         title = "Review overdue: @" + row["waiting_for"].replace(", ", ", @")

@@ -4,7 +4,7 @@
 > This app is a prototype in a test phase. Feedback is welcome: please
 > [open an issue](https://codeberg.org/florence-bockting/oss-inbox/issues).
 
-A local inbox for your GitHub notifications. It separates the items that need
+A local inbox for your GitHub and Codeberg notifications. It separates the items that need
 your action from the items that you only want to follow. It reminds you again
 when you do not act.
 
@@ -23,9 +23,9 @@ Or use it in your terminal:
 
 ## Vision
 
-oss-inbox currently supports only GitHub. In the future, it will also collect the
-notifications from other platforms, for example Codeberg and other Forgejo instances.
-The goal is one inbox for all your open-source work.
+oss-inbox currently supports GitHub fully and Codeberg in a first version. In the
+future, it will also collect the notifications from other platforms, for example
+GitLab and other Forgejo servers. The goal is one inbox for all your open-source work.
 
 The app had the name gh-inbox before.
 

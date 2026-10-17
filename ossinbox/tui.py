@@ -45,7 +45,7 @@ FILTER_FIELDS = {
 }
 FIELD_PROMPTS = {"repo": "All repos", "kind": "All kinds", "reason": "All types"}
 FIELD_LABELS = {
-    "repo": lambda v: v,
+    "repo": db.repo_label,
     "kind": lambda v: KINDS.get(v, (v,))[0],
     "reason": lambda v: REASON_LABELS.get(v, v),
 }
@@ -59,7 +59,18 @@ SETTINGS = [
     ("new_item_days", "Watch history (days)"),
     ("notify", "Pop-ups on (1) / off (0)"),
     ("notes_file", "Notes file"),
+    ("forgejo_url", "Codeberg URL"),
 ]
+CODEBERG_STYLE = "bold #2185d0"
+
+
+def repo_cell(repo, number=None):
+    """The short repo name with a prefix in front: GH for GitHub, CB for Codeberg."""
+    name = db.short_repo(repo)
+    if number:
+        name += f"#{number}"
+    style = CODEBERG_STYLE if db.forge_host(repo) else "dim"
+    return Text.assemble((db.forge_prefix(repo) + " ", style), name)
 
 
 def ago(iso):
@@ -87,14 +98,14 @@ class Prompt(ModalScreen):
     """
     BINDINGS: ClassVar = [("escape", "cancel", "Cancel")]
 
-    def __init__(self, question, value=""):
+    def __init__(self, question, value="", password=False):
         super().__init__()
-        self.question, self.value = question, value
+        self.question, self.value, self.password = question, value, password
 
     def compose(self) -> ComposeResult:
         with Vertical():
             yield Label(self.question)
-            yield Input(value=self.value)
+            yield Input(value=self.value, password=self.password)
 
     def on_input_submitted(self, event):
         self.dismiss(event.value)
@@ -192,8 +203,8 @@ class InboxApp(App):
             return None
         return rows[table.cursor_row]
 
-    def ask(self, question, value, callback):
-        self.push_screen(Prompt(question, value), callback)
+    def ask(self, question, value, callback, password=False):
+        self.push_screen(Prompt(question, value, password), callback)
 
     def do(self, action, body):
         try:
@@ -209,6 +220,8 @@ class InboxApp(App):
         parts = [f"@{st['login']}" if st["login"] else "not synced yet",
                  f"synced {ago(st['last_sync'])} ago" if st["last_sync"] else "never synced",
                  "poller running" if st["poller_running"] else "[b red]poller not running[/]"]
+        if st["forgejo_login"]:
+            parts.insert(1, f"[{CODEBERG_STYLE}]CB[/] @{st['forgejo_login']}")
         if self.show_done:
             parts.append("showing done")
         rate = st["rate"]
@@ -233,34 +246,36 @@ class InboxApp(App):
 
         settings = st["settings"]
         self._fill("action", self._items("action"), lambda it: (
-            self._kind(it), self._badge(it), it["repo"] + (f"#{it['number']}" if it["number"] else ""),
+            self._kind(it), self._badge(it), repo_cell(it["repo"], it["number"]),
             self._title(it), it["author"] or "", ago(it["event_at"]),
             f"{it['remind_hours']:g}h" if it["remind_hours"] is not None
             else f"{float(settings['default_remind_hours']):g}h"))
         self._fill("todo", self._items("todo"), lambda it: (
-            self._kind(it), self._badge(it), it["repo"] + (f"#{it['number']}" if it["number"] else ""),
+            self._kind(it), self._badge(it), repo_cell(it["repo"], it["number"]),
             self._title(it), it["author"] or "", ago(it["event_at"]),
             f"{it['remind_hours']:g}h" if it["remind_hours"] is not None
             else f"{float(settings['default_remind_hours']):g}h"))
         self._fill("watch", self._items("watch"), lambda it: (
-            self._kind(it), self._badge(it), it["repo"] + (f"#{it['number']}" if it["number"] else ""),
+            self._kind(it), self._badge(it), repo_cell(it["repo"], it["number"]),
             self._title(it), it["author"] or "", ago(it["event_at"])))
         self._fill("mine", self._items("mine"), lambda it: (
-            self._kind(it), self._badge(it), f"{it['repo']}#{it['number']}", self._title(it),
+            self._kind(it), self._badge(it), repo_cell(it["repo"], it["number"]), self._title(it),
             ago(it["updated_at"]),
             f"{it['stall_days']:g}d" if it["stall_days"] is not None
             else f"{float(settings['stall_days']):g}d (default)",
             f"{it['remind_hours']:g}h" if it["remind_hours"] else "off"))
         self._fill("repos", db.list_repos(self.conn), lambda r: (
             Text("[x]" if r["watched"] else "[ ]", style="bold green" if r["watched"] else ""),
-            r["full_name"], r["source"] or ""))
+            repo_cell(r["full_name"]), r["source"] or ""))
         info = [
             {"key": None, "label": "API requests each hour (most)",
              "value": f"about {st['estimate_per_hour']} of {rate.get('limit', 5000)}"},
             {"key": None, "label": "Last sync used", "value": st["last_sync_cost"] or "?"},
         ]
+        token = {"key": "forgejo_token", "label": "Codeberg token",
+                 "value": "saved" if st["forgejo_token"] else "not set"}
         self._fill("settings", [{"key": k, "label": l, "value": settings[k]}
-                                for k, l in SETTINGS] + info, lambda s: (s["label"], s["value"]))
+                                for k, l in SETTINGS] + [token] + info, lambda s: (s["label"], s["value"]))
 
     def _items(self, category):
         items = db.list_items(self.conn, category, self.show_done, self.oldest.get(category, False))
@@ -380,7 +395,8 @@ class InboxApp(App):
         if it and it.get("url"):
             webbrowser.open(it["url"])
         elif it and it.get("full_name"):
-            webbrowser.open(f"https://github.com/{it['full_name']}")
+            name = it["full_name"]
+            webbrowser.open(f"https://{name}" if db.forge_host(name) else f"https://github.com/{name}")
 
     def action_done(self):
         it = self.current()
@@ -478,12 +494,12 @@ class InboxApp(App):
             self.do("repos/watch", {"full_name": it["full_name"], "watched": not it["watched"]})
 
     def action_add_repo(self):
-        self.ask("Add and watch a repo (owner/repo):", "",
+        self.ask("Add and watch a repo (owner/repo, or a Codeberg URL):", "",
                  lambda v: v and self.do("repos/add", {"full_name": v}))
 
     @work(thread=True, exclusive=True)
     def action_load_repos(self):
-        self.call_from_thread(self.notify, "Loading your GitHub repos…")
+        self.call_from_thread(self.notify, "Loading your repos…")
         try:
             sync.load_repo_candidates(db.connect())
         except Exception as exc:  # noqa: BLE001 - show every failure to the user
@@ -493,6 +509,11 @@ class InboxApp(App):
     def action_edit_setting(self):
         it = self.current()
         if not it or not it.get("key") or "label" not in it:
+            return
+        if it["key"] == "forgejo_token":
+            self.ask("Codeberg token (empty removes it):", "",
+                     lambda v: v is not None and self.do("forgejo/token", {"token": v}),
+                     password=True)
             return
         value = db.get_setting(self.conn, it["key"])
         self.ask(f"{it['label']}:", value,

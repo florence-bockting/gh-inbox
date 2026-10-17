@@ -8,3 +8,5 @@ build/
 dist/
 # MkDocs output
 site/
+# Access tokens, when OSS_INBOX_DIR points into the repo
+*.token

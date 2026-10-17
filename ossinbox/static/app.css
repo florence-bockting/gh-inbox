@@ -103,3 +103,6 @@ button.btn:disabled { opacity: 0.5; cursor: default; }
 }
 #newRepo { width: 240px; }
 #repoFilter { width: 180px; }
+.forge { display: inline-flex; vertical-align: -3px; margin-right: 4px; }
+.forge svg { width: 14px; height: 14px; }
+.forge.codeberg { color: #2185d0; }
