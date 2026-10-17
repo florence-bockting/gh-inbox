@@ -207,8 +207,8 @@ def list_items(conn, category, show_done=False, oldest_first=False):
     # Pinned items first, in both orders.
     sql += (f" ORDER BY priority DESC, "
             f"{when} {'ASC' if oldest_first else 'DESC'}")
-    from . import notes  # notes imports db
     from ..providers import registry  # the providers import db
+    from . import notes  # notes imports db
     saved = notes.load(get_setting(conn, "notes_file"))
     items = [dict(r) for r in conn.execute(sql, (category,))]
     for it in items:
