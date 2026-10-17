@@ -1,6 +1,6 @@
 import pytest
 
-from ghinbox import db, web
+from ossinbox import db, web
 
 
 @pytest.fixture

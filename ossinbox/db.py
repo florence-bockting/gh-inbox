@@ -8,7 +8,10 @@ from pathlib import Path
 
 from . import gh
 
-DATA_DIR = Path(os.environ.get("GH_INBOX_DIR", Path.home() / ".local/share/gh-inbox"))
+# The app had the name gh-inbox before. The old environment variable still works.
+DATA_DIR = Path(os.environ.get("OSS_INBOX_DIR") or os.environ.get("GH_INBOX_DIR")
+                or Path.home() / ".local/share/oss-inbox")
+OLD_DATA_DIR = Path.home() / ".local/share/gh-inbox"
 DB_PATH = DATA_DIR / "state.db"
 
 DEFAULT_SETTINGS = {
@@ -18,7 +21,7 @@ DEFAULT_SETTINGS = {
     "review_wait_days": "3",
     "notify": "1",
     "new_item_days": "14",
-    "notes_file": "~/gh-inbox/notes.csv",
+    "notes_file": "~/oss-inbox/notes.csv",
 }
 # The other settings are numeric.
 TEXT_SETTINGS = {"notes_file"}
@@ -89,6 +92,14 @@ def now_iso():
 
 def parse_iso(value):
     return datetime.fromisoformat(value) if value else None
+
+
+def move_old_data():
+    """Move the data folder of gh-inbox to the new name. Only the first start does this."""
+    if os.environ.get("OSS_INBOX_DIR") or os.environ.get("GH_INBOX_DIR"):
+        return
+    if OLD_DATA_DIR.is_dir() and not DATA_DIR.exists():
+        OLD_DATA_DIR.rename(DATA_DIR)
 
 
 def connect():

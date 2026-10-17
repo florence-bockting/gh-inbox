@@ -1,8 +1,8 @@
-# gh-inbox
+# oss-inbox
 
 !!! note
     This app is a prototype in a test phase. Feedback is welcome: please
-    [open an issue](https://github.com/florence-bockting/gh-inbox/issues).
+    [open an issue](https://codeberg.org/florence-bockting/oss-inbox/issues).
 
 A local inbox for your GitHub notifications. It separates the items that need
 your action from the items that you only want to follow. It reminds you again
@@ -15,17 +15,17 @@ changes anything on GitHub. All data stays on your computer.
 Use the app in your browser:
 
 <figure markdown>
-![The web page of gh-inbox](icons/web-app.png)
+![The web page of oss-inbox](icons/web-app.png)
 </figure>
 
 Or use it in your terminal:
 
 <figure markdown>
-![The terminal UI of gh-inbox](icons/terminal-app.png)
+![The terminal UI of oss-inbox](icons/terminal-app.png)
 </figure>
 
 ## Where to start
 
 - [Install](install.md) the app and then read [Use the app](usage.md).
-- **Know which problems the app solves:** read [Why gh-inbox?](scenarios.md)
+- **Know which problems the app solves:** read [Why oss-inbox?](scenarios.md)
 - **Change the code:** read [For developers](developers.md).

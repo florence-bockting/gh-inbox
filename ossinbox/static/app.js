@@ -62,7 +62,7 @@ async function get(path) {
 }
 async function post(path, body = {}) {
   const r = await fetch(path, {
-    method: "POST", headers: {"Content-Type": "application/json", "X-GH-Inbox": "1"},
+    method: "POST", headers: {"Content-Type": "application/json", "X-OSS-Inbox": "1"},
     body: JSON.stringify(body),
   });
   const data = await r.json();
@@ -331,7 +331,7 @@ document.addEventListener("click", async (e) => {
   }
   if (t.id === "applySettings") return applySettings();
   if (t.id === "stopDaemon"
-      && confirm("Stop the daemon? Sync and pop-ups stop until you run gh-inbox web again.")) {
+      && confirm("Stop the daemon? Sync and pop-ups stop until you run oss-inbox web again.")) {
     try { await post("/api/stop"); }
     catch (err) { return alert(err.message); }
     return showStopped();
@@ -394,7 +394,7 @@ function showStopped() {
   stopped = true;
   document.querySelectorAll("header button, header input").forEach((b) => { b.disabled = true; });
   $("#tabs").innerHTML = $("#main").innerHTML = $("#status").innerHTML = "";
-  $("#banner").textContent = "The daemon stopped. To start it again, run gh-inbox web in a terminal.";
+  $("#banner").textContent = "The daemon stopped. To start it again, run oss-inbox web in a terminal.";
 }
 
 // Check every 5 s that the daemon runs. When it runs again, reload the page.

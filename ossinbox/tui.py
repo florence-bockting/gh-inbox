@@ -104,7 +104,7 @@ class Prompt(ModalScreen):
 
 
 class InboxApp(App):
-    TITLE = "gh-inbox"
+    TITLE = "oss-inbox"
     CSS = """
     #status { height: 1; padding: 0 1; background: $boost; }
     DataTable { height: 1fr; }

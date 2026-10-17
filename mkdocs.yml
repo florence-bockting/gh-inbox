@@ -1,16 +1,16 @@
-site_name: gh-inbox
+site_name: oss-inbox
 site_description: A local inbox for your GitHub notifications, built on the gh CLI
-site_url: https://florence-bockting.github.io/gh-inbox/
-repo_url: https://github.com/florence-bockting/gh-inbox
-repo_name: florence-bockting/gh-inbox
-edit_uri: edit/main/docs/
+site_url: https://florence-bockting.codeberg.page/oss-inbox/
+repo_url: https://codeberg.org/florence-bockting/oss-inbox
+repo_name: florence-bockting/oss-inbox
+edit_uri: _edit/main/docs/
 copyright: MIT License
 
 nav:
   - Home: index.md
   - Install: install.md
   - Use the app: usage.md
-  - Why gh-inbox?: scenarios.md
+  - Why oss-inbox?: scenarios.md
   - For developers: developers.md
 
 theme:

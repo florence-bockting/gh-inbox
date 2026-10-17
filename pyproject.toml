@@ -3,7 +3,7 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gh-inbox"
+name = "oss-inbox"
 version = "0.3.1"
 description = "A local interface for GitHub notifications, built on the gh CLI"
 requires-python = ">=3.10"
@@ -16,10 +16,10 @@ dev = ["pip-audit", "pytest", "ruff==0.17.0"]
 docs = ["mkdocs<2", "mkdocs-material>=9.5"]
 
 [project.scripts]
-gh-inbox = "ghinbox.cli:main"
+oss-inbox = "ossinbox.cli:main"
 
 [tool.setuptools]
-packages = ["ghinbox"]
+packages = ["ossinbox"]
 
 [tool.setuptools.package-data]
-ghinbox = ["static/*"]
+ossinbox = ["static/*"]

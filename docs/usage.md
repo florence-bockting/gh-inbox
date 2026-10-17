@@ -1,21 +1,21 @@
 # Use the app
 
-You can use gh-inbox in two ways:
+You can use oss-inbox in two ways:
 
 - In your browser, on a local web page.
 - In your terminal, with a text interface.
 
 !!! note "The command name"
-    This page writes `gh-inbox`. You get this command when you
+    This page writes `oss-inbox`. You get this command when you
     [install from the source](install.md#install-from-the-source).
     If you use the [executable](install.md#download-the-executable), type the file name
     instead. Run the command in the folder that contains the file.
 
     | System | Command | Example |
     | :-- | :-- | :-- |
-    | Linux | `./gh-inbox-linux` | `./gh-inbox-linux stop` |
-    | macOS | `./gh-inbox-macos` | `./gh-inbox-macos stop` |
-    | Windows | `.\gh-inbox-win.exe` | `.\gh-inbox-win.exe stop` |
+    | Linux | `./oss-inbox-linux` | `./oss-inbox-linux stop` |
+    | macOS | `./oss-inbox-macos` | `./oss-inbox-macos stop` |
+    | Windows | `.\oss-inbox-win.exe` | `.\oss-inbox-win.exe stop` |
 
 ## Start the app
 
@@ -24,13 +24,13 @@ You can use gh-inbox in two ways:
     To open the web page, run this command in a terminal. On Windows, use PowerShell.
 
     ```bash
-    gh-inbox web
+    oss-inbox web
     ```
 
     The command opens http://127.0.0.1:8765 in your browser.
 
     <figure markdown>
-    ![The web page of gh-inbox](icons/web-app.png)
+    ![The web page of oss-inbox](icons/web-app.png)
     </figure>
 
     Each item has these buttons in the web page.
@@ -50,11 +50,11 @@ You can use gh-inbox in two ways:
     To open the terminal UI, run this command in a terminal. On Windows, use PowerShell.
 
     ```bash
-    gh-inbox tui
+    oss-inbox tui
     ```
 
     <figure markdown>
-    ![The terminal UI of gh-inbox](icons/terminal-app.png)
+    ![The terminal UI of oss-inbox](icons/terminal-app.png)
     </figure>
 
     Keys in the terminal UI:
@@ -132,7 +132,7 @@ Do steps 1 to 3 once, after the first start. Then the inbox fills up. Do step 4 
 
     === "In the terminal"
 
-        Run `gh-inbox stop`.
+        Run `oss-inbox stop`.
 
 ## Basic commands
 
@@ -140,22 +140,22 @@ The background process (the "daemon") syncs with GitHub every 60 minutes
 ([default settings](#default-settings)). It
 sends the pop-ups and serves the web page.
 
-The daemon runs in the background. You can close the terminal after `gh-inbox web`.
-To stop the daemon, click **Stop daemon** on the web page, or run `gh-inbox stop`.
+The daemon runs in the background. You can close the terminal after `oss-inbox web`.
+To stop the daemon, click **Stop daemon** on the web page, or run `oss-inbox stop`.
 The web page then shows "The daemon stopped" within 5 seconds.
 When the daemon runs again, the open page reloads.
 
 Run these commands in a terminal on Linux and macOS, or in PowerShell on Windows.
-To get the `gh-inbox` command, see [Install](install.md).
+To get the `oss-inbox` command, see [Install](install.md).
 
 | Command | What it does |
 | :-- | :-- |
-| `gh-inbox daemon` | Starts the background process. Only one can run. |
-| `gh-inbox web` | Opens the web page. Starts the daemon in the background if it does not run. |
-| `gh-inbox stop` | Stops the daemon |
-| `gh-inbox tui` | Opens the terminal UI |
-| `gh-inbox sync` | Runs one sync now |
-| `gh-inbox test-popup` | Sends 2 test pop-ups |
+| `oss-inbox daemon` | Starts the background process. Only one can run. |
+| `oss-inbox web` | Opens the web page. Starts the daemon in the background if it does not run. |
+| `oss-inbox stop` | Stops the daemon |
+| `oss-inbox tui` | Opens the terminal UI |
+| `oss-inbox sync` | Runs one sync now |
+| `oss-inbox test-popup` | Sends 2 test pop-ups |
 
 ## How your inbox is organized
 
@@ -249,7 +249,7 @@ can change any time.
 | Sync every (minutes) | 60 |
 | Watch history (days) | 14 |
 | Pop-ups on (1) / off (0) | 1 |
-| Notes file | `~/gh-inbox/notes.csv` |
+| Notes file | `~/oss-inbox/notes.csv` |
 
 ## Work with items
 
@@ -272,7 +272,7 @@ can change any time.
 - Click ![note](icons/note.svg){ height="16" } on an item, or press `n` in the terminal UI. Write the note.
   In the web page, Ctrl+Enter saves it. An empty note deletes it.
 - A note belongs to the issue or PR. It shows in every tab with that item.
-- The app saves the notes in a CSV file. The default is `~/gh-inbox/notes.csv`
+- The app saves the notes in a CSV file. The default is `~/oss-inbox/notes.csv`
   ([default settings](#default-settings)).
   You can edit the file by hand. The app reads it again at each page load.
 - When you change the "Notes file" setting, the app moves the file. If a file
@@ -329,7 +329,7 @@ The status bar is at the top of the web page and of the terminal UI. It shows:
 | :-- | :-- |
 | `@your-login` | The GitHub account that `gh` uses |
 | `synced 5m ago` | The time of the last sync. Before the first sync: `never synced`. |
-| `poller running` | The daemon syncs with GitHub. In red: `poller not running`. Run `gh-inbox web` to start the daemon again. |
+| `poller running` | The daemon syncs with GitHub. In red: `poller not running`. Run `oss-inbox web` to start the daemon again. |
 | `sync error` | The last sync failed. In the web page, move the mouse on it to see the error. |
 | `API 4800/5000` | GitHub API requests left in this hour, and the limit. See [GitHub API use](#github-api-use). |
 
@@ -338,7 +338,7 @@ The terminal UI also shows `showing done` when it shows done items.
 ## Privacy
 
 - The web page listens only on `127.0.0.1`. Other computers cannot open it.
-- The data is in `~/.local/share/gh-inbox/`. Remove this folder to remove all
+- The data is in `~/.local/share/oss-inbox/`. Remove this folder to remove all
   data. Your notes are in a different place: the "Notes file" setting
   ([add a note to an item](#add-a-note-to-an-item)).
 - The app does not send your notes to GitHub.

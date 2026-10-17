@@ -12,7 +12,7 @@ from . import db, osdeps, state, sync
 HOST, PORT = "127.0.0.1", 8765
 # Each POST must send this header. A browser cannot add it on a cross-site request
 # without a preflight, and this server answers no preflight.
-CSRF_HEADER = "X-GH-Inbox"
+CSRF_HEADER = "X-OSS-Inbox"
 # The page loads only its own files. An injected inline script does not run.
 CSP = "default-src 'self'; base-uri 'none'; frame-ancestors 'none'"
 

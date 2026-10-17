@@ -1,4 +1,4 @@
-# Why gh-inbox?
+# Why oss-inbox?
 
 Each scenario matches a problem from my old workflow to a solution in the app.
 Click a card for the details.

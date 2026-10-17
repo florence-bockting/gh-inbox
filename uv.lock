@@ -335,7 +335,7 @@ wheels = [
 ]
 
 [[package]]
-name = "gh-inbox"
+name = "oss-inbox"
 version = "0.3.0"
 source = { editable = "." }
 dependencies = [

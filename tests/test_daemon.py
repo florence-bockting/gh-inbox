@@ -1,7 +1,7 @@
 import sqlite3
 import threading
 
-from ghinbox import daemon, db
+from ossinbox import daemon, db
 
 
 def test_failed_round_does_not_stop_poller(tmp_path, monkeypatch):

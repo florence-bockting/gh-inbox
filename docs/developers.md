@@ -13,18 +13,18 @@
 
 | File | Content |
 | :-- | :-- |
-| `ghinbox/gh.py` | Wrapper for `gh api`. Only GET requests. |
-| `ghinbox/db.py` | SQLite schema, settings and queries |
-| `ghinbox/sync.py` | Gets data from GitHub and sorts it into the tabs |
-| `ghinbox/reminders.py` | Finds the items that need a pop-up now |
-| `ghinbox/notes.py` | Reads and writes the notes CSV |
-| `ghinbox/osdeps.py` | All code that differs between Linux, macOS and Windows |
-| `ghinbox/state.py` | The UI actions that both UIs share |
-| `ghinbox/daemon.py` | Timer for sync and pop-ups, plus the web server |
-| `ghinbox/web.py` | Flask app: JSON API for the web page |
-| `ghinbox/static/` | The web page: `index.html`, `app.css` and `app.js` |
-| `ghinbox/tui.py` | The terminal UI |
-| `ghinbox/cli.py` | The `gh-inbox` command |
+| `ossinbox/gh.py` | Wrapper for `gh api`. Only GET requests. |
+| `ossinbox/db.py` | SQLite schema, settings and queries |
+| `ossinbox/sync.py` | Gets data from GitHub and sorts it into the tabs |
+| `ossinbox/reminders.py` | Finds the items that need a pop-up now |
+| `ossinbox/notes.py` | Reads and writes the notes CSV |
+| `ossinbox/osdeps.py` | All code that differs between Linux, macOS and Windows |
+| `ossinbox/state.py` | The UI actions that both UIs share |
+| `ossinbox/daemon.py` | Timer for sync and pop-ups, plus the web server |
+| `ossinbox/web.py` | Flask app: JSON API for the web page |
+| `ossinbox/static/` | The web page: `index.html`, `app.css` and `app.js` |
+| `ossinbox/tui.py` | The terminal UI |
+| `ossinbox/cli.py` | The `oss-inbox` command |
 
 ## How a sync works
 
@@ -51,7 +51,7 @@ Your own values stay: done, reminder interval, stall time, priority and tab.
 - **Never put GitHub text into a script.** Issue titles go to the pop-up tools
   as arguments or environment variables. Then a title cannot run code.
 - **Keep the web server safe.** It binds `127.0.0.1` only. It refuses a foreign
-  `Host` header. Each POST needs the header `X-GH-Inbox: 1`.
+  `Host` header. Each POST needs the header `X-OSS-Inbox: 1`.
 
 ## Run the tests
 
@@ -64,7 +64,7 @@ Install the developer tools:
 Run the checks. CI runs the same checks on Linux, macOS and Windows:
 
 ```bash
-.venv/bin/ruff check ghinbox tests
+.venv/bin/ruff check ossinbox tests
 .venv/bin/pytest -q tests
 .venv/bin/pip-audit --skip-editable
 ```
@@ -75,32 +75,32 @@ styles. Put new JavaScript in `app.js`. Put new CSS in `app.css`.
 ## Run your changes
 
 `uv tool install .` copies the code. A change in the folder then has no effect on
-the `gh-inbox` command. Install the command as editable. It then runs the code in
+the `oss-inbox` command. Install the command as editable. It then runs the code in
 the folder:
 
 ```bash
 uv tool install --force --editable .
 ```
 
-You can have two `gh-inbox` commands: `.venv/bin/gh-inbox` and the `uv tool` command.
-Run `which -a gh-inbox` to see which one comes first in your `PATH`.
+You can have two `oss-inbox` commands: `.venv/bin/oss-inbox` and the `uv tool` command.
+Run `which -a oss-inbox` to see which one comes first in your `PATH`.
 
 A change to a Python file needs a daemon restart:
 
 ```bash
-gh-inbox stop
-gh-inbox web
+oss-inbox stop
+oss-inbox web
 ```
 
 A change to `app.js`, `app.css` or `index.html` needs only a page reload.
 
 ## Use test data
 
-Set `GH_INBOX_DIR` to a new folder. The app then does not touch your real data:
+Set `OSS_INBOX_DIR` to a new folder. The app then does not touch your real data:
 
 ```bash
-export GH_INBOX_DIR=/tmp/gh-inbox-test
-gh-inbox sync
+export OSS_INBOX_DIR=/tmp/oss-inbox-test
+oss-inbox sync
 ```
 
 Use another port when the real daemon runs. Set `web.PORT` in a test script.
@@ -114,9 +114,9 @@ Use test data for all steps (see [Use test data](#use-test-data)).
 
 1. **Install.** Follow [Install from the source](install.md#install-from-the-source), steps 1 and 2.
 
-2. **Sync.** Run `gh-inbox sync`. The output must be `ok`.
+2. **Sync.** Run `oss-inbox sync`. The output must be `ok`.
 
-3. **Pop-ups.** Run `gh-inbox test-popup`. Two pop-ups must come.
+3. **Pop-ups.** Run `oss-inbox test-popup`. Two pop-ups must come.
    - On macOS, the first pop-up can ask for permission.
    - On Windows, the pop-ups come from "Windows PowerShell".
 
@@ -124,7 +124,7 @@ Use test data for all steps (see [Use test data](#use-test-data)).
 
    ```bash
    python -c "
-   from ghinbox import osdeps, db
+   from ossinbox import osdeps, db
    p = db.DATA_DIR / 'sync.lock'
    with osdeps.try_lock(p) as a:
        with osdeps.try_lock(p) as b:
@@ -132,13 +132,13 @@ Use test data for all steps (see [Use test data](#use-test-data)).
    "
    ```
 
-5. **One daemon.** Run `gh-inbox daemon` in 2 terminals. The second must stop
+5. **One daemon.** Run `oss-inbox daemon` in 2 terminals. The second must stop
    with "Port 8765 is in use".
 
 6. **Web page.** Open http://127.0.0.1:8765. Watch a repo. Click **Sync now**.
    Items must come.
 
-7. **Terminal UI.** Run `gh-inbox tui`. Press `1`–`6`, `d`, `f` and `x`.
+7. **Terminal UI.** Run `oss-inbox tui`. Press `1`–`6`, `d`, `f` and `x`.
 
 8. **Clean up.** Remove the test data folder.
 
@@ -150,7 +150,7 @@ Textual can run the UI headless. Example:
 
 ```python
 import asyncio
-from ghinbox.tui import InboxApp
+from ossinbox.tui import InboxApp
 
 async def main():
     app = InboxApp()

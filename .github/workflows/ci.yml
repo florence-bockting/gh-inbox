@@ -23,7 +23,7 @@ jobs:
           python-version: ${{ matrix.python }}
       - run: python -m pip install --upgrade pip setuptools
       - run: python -m pip install -e ".[dev]"
-      - run: ruff check ghinbox tests
+      - run: ruff check ossinbox tests
       - run: pytest -q tests
       - run: pip-audit --skip-editable
 
@@ -40,11 +40,11 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install . pyinstaller
-      - run: pyinstaller --noconfirm packaging/gh-inbox.spec
-      - run: dist/gh-inbox --help
+      - run: pyinstaller --noconfirm packaging/oss-inbox.spec
+      - run: dist/oss-inbox --help
         shell: bash
-      - run: dist/gh-inbox sync
+      - run: dist/oss-inbox sync
         shell: bash
         env:
-          GH_INBOX_DIR: ${{ runner.temp }}/gh-inbox
+          OSS_INBOX_DIR: ${{ runner.temp }}/oss-inbox
           GH_TOKEN: ${{ github.token }}

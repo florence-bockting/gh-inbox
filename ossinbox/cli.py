@@ -1,4 +1,4 @@
-"""Command line: gh-inbox daemon | web | stop | tui | sync | test-popup."""
+"""Command line: oss-inbox daemon | web | stop | tui | sync | test-popup."""
 
 import argparse
 import os
@@ -51,8 +51,8 @@ def cmd_web():
         else:
             raise SystemExit(f"The daemon did not start. See {err}")
         print("The daemon runs in the background. You can close the terminal.")
-        # The executable has its own file name, for example ./gh-inbox-linux.
-        name = sys.argv[0] if getattr(sys, "frozen", False) else "gh-inbox"
+        # The executable has its own file name, for example ./oss-inbox-linux.
+        name = sys.argv[0] if getattr(sys, "frozen", False) else "oss-inbox"
         print(f"To stop it, run: {name} stop")
     _open_browser(url)
 
@@ -68,9 +68,10 @@ def cmd_stop():
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(prog="gh-inbox", description="A better GitHub notifications inbox.")
+    parser = argparse.ArgumentParser(prog="oss-inbox", description="A better GitHub notifications inbox.")
     parser.add_argument("command", choices=["daemon", "web", "stop", "tui", "sync", "test-popup"])
     args = parser.parse_args(argv)
+    db.move_old_data()
     if args.command == "daemon":
         from . import daemon
         daemon.main()
@@ -84,6 +85,6 @@ def main(argv=None):
     elif args.command == "sync":
         print(sync.sync(db.connect()))
     elif args.command == "test-popup":
-        osdeps.notify("gh-inbox test", "A normal pop-up.")
-        osdeps.notify("gh-inbox test", "An urgent pop-up, as for a reminder.", urgent=True)
+        osdeps.notify("oss-inbox test", "A normal pop-up.")
+        osdeps.notify("oss-inbox test", "An urgent pop-up, as for a reminder.", urgent=True)
         print("Sent 2 pop-ups: one normal, one urgent.")
